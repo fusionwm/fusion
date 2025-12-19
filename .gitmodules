@@ -1,0 +1,3 @@
+[submodule "lib/tree-sitter-config"]
+	path = lib/tree-sitter-config
+	url = https://github.com/Nethalym/tree-sitter-config.git
