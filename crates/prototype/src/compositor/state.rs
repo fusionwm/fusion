@@ -1,5 +1,8 @@
 #![allow(unused)]
 
+use std::sync::{Arc, Mutex};
+
+use graphics::graphics::Graphics;
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
     delegate_compositor, delegate_data_device, delegate_output, delegate_seat, delegate_shm,
@@ -43,10 +46,13 @@ use wayland_server::{
     protocol::{wl_seat::WlSeat, wl_surface::WlSurface},
 };
 
-use crate::compositor::{
-    ClientState,
-    backend::Backend,
-    grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
+use crate::{
+    compositor::{
+        ClientState,
+        backend::Backend,
+        grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
+    },
+    module::{engine::ModuleEngine, loader::ModuleLoader},
 };
 
 pub struct App<B: Backend + 'static> {
@@ -64,6 +70,8 @@ pub struct App<B: Backend + 'static> {
     pub loop_signal: LoopSignal,
 
     pub backend: B,
+
+    pub engine: ModuleEngine,
 }
 
 impl<B: Backend> App<B> {
@@ -109,6 +117,12 @@ impl<B: Backend> App<B> {
 
         let popups = PopupManager::default();
 
+        // Настройка модулей
+        let graphics = Arc::new(Mutex::new(Graphics::new()));
+        let (error_tx, mut error_rx) = tokio::sync::mpsc::channel(16);
+        let module_loader = ModuleLoader::new(error_tx).await?;
+        let mut engine = ModuleEngine::new(module_loader, graphics.clone());
+
         Self {
             compositor_state,
             data_device_state,
@@ -121,6 +135,8 @@ impl<B: Backend> App<B> {
             popups,
             loop_signal,
             backend,
+
+            engine,
         }
     }
 

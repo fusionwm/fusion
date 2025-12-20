@@ -7,7 +7,7 @@ use crate::compositor::state::App;
 
 pub struct WinitBackend {
     pub backend: WinitGraphicsBackend<GlesRenderer>,
-    winit: WinitEventLoop,
+    pub winit: WinitEventLoop,
 }
 
 impl WinitBackend {
@@ -27,33 +27,6 @@ impl WinitBackend {
 
     pub fn backend(&mut self) -> &mut WinitGraphicsBackend<GlesRenderer> {
         &mut self.backend
-    }
-
-    pub fn dispatch_new_events(
-        &mut self,
-        state: &mut App<WinitBackend>,
-        output: &mut output::Output,
-    ) {
-        self.winit.dispatch_new_events(|event| match event {
-            WinitEvent::Resized { size, scale_factor } => {
-                output.change_current_state(
-                    Some(Mode {
-                        size,
-                        refresh: 60_000,
-                    }),
-                    None,
-                    None,
-                    None,
-                );
-            }
-            WinitEvent::Focus(_) => {}
-            //WinitEvent::Input(_) => {}
-            WinitEvent::Input(input) => state.handle_input_event(input),
-            WinitEvent::CloseRequested => {
-                state.loop_signal.stop();
-            }
-            WinitEvent::Redraw => {}
-        });
     }
 }
 

@@ -14,6 +14,7 @@ mod error;
 mod rendering;
 pub mod types;
 
+use calloop::EventSource;
 pub use content::*;
 pub use fontdue;
 pub use glam;
@@ -38,6 +39,7 @@ pub use error::*;
 pub use rendering::commands;
 use std::{
     ffi::c_void,
+    os::unix::net::UnixStream,
     ptr::NonNull,
     sync::{Arc, Mutex},
     time::Instant,

@@ -2,7 +2,6 @@ pub mod backend;
 pub mod data;
 pub mod grabs;
 pub mod input;
-pub mod renderer;
 pub mod state;
 pub mod window;
 
@@ -12,7 +11,9 @@ use std::time::Duration;
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::gles::GlesRenderer;
+use smithay::backend::winit::WinitEvent;
 use smithay::desktop::space::render_output;
+use smithay::output::Mode;
 use smithay::reexports::calloop::generic::Generic;
 use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use smithay::reexports::calloop::{EventLoop, Interest, PostAction};
@@ -46,8 +47,7 @@ pub fn init_compositor(
     let socket_name = socket.socket_name().to_os_string();
 
     println!("Socket: {}", socket_name.display());
-    // Set the enviroment variable that Wayland clients can use. They get the socket and connect to
-    // it.
+
     unsafe { std::env::set_var("WAYLAND_DISPLAY", &socket_name) };
 
     // Добавляем сокет Wayland к циклу событий
@@ -137,7 +137,28 @@ pub fn init_compositor(
             unsafe {
                 (*state_ptr)
                     .backend
-                    .dispatch_new_events(&mut *state_ptr, &mut output);
+                    .winit
+                    .dispatch_new_events(|event| match event {
+                        WinitEvent::Resized { size, scale_factor } => {
+                            output.change_current_state(
+                                Some(Mode {
+                                    size,
+                                    refresh: 60_000,
+                                }),
+                                None,
+                                None,
+                                None,
+                            );
+                        }
+                        WinitEvent::Focus(_) => {}
+                        WinitEvent::Input(input) => state.handle_input_event(input),
+                        WinitEvent::CloseRequested => {
+                            state.loop_signal.stop();
+                        }
+                        WinitEvent::Redraw => {
+                            state.engine.tick().unwrap();
+                        }
+                    });
             }
 
             {

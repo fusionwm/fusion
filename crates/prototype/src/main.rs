@@ -56,18 +56,12 @@ fn setup_logging() {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     setup_logging();
-    let (error_tx, mut error_rx) = tokio::sync::mpsc::channel(16);
 
     // Используем EventLoop для обработки событий от разных источников
     let mut event_loop: EventLoop<data::Data<WinitBackend>> = EventLoop::try_new()?;
 
     let backend = WinitBackend::new().unwrap();
     let mut data = init_compositor(&event_loop, backend)?;
-
-    let graphics = Arc::new(Mutex::new(Graphics::new()));
-
-    let module_loader = ModuleLoader::new(error_tx).await?;
-    let mut engine = ModuleEngine::new(module_loader, graphics.clone());
 
     let (executor, scheduler) = calloop::futures::executor()?;
     event_loop

@@ -1791,6 +1791,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
+ "calloop 0.14.3",
  "derive_more",
  "enum_dispatch",
  "fontdue",
