@@ -1,0 +1,21 @@
+[package]
+name = "graphics"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wayland-client.workspace = true
+wl_client.workspace = true
+wgpu.workspace = true
+bytemuck.workspace = true
+glam.workspace = true
+fontdue.workspace = true
+enum_dispatch.workspace = true
+guillotiere.workspace = true
+pollster.workspace = true
+derive_more.workspace = true
+rand.workspace = true
+image.workspace = true
+resvg.workspace = true
+thiserror.workspace = true
+bitflags.workspace = true
