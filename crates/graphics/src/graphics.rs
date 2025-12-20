@@ -4,20 +4,20 @@ use crate::{
 };
 use glam::Vec2;
 
-pub struct App {
+pub struct Graphics {
     pub(crate) frontends: Vec<Box<dyn WindowRoot>>,
     pub(crate) requested_frontends: Vec<Box<dyn WindowRoot>>,
 
     content: ContentManager,
 }
 
-impl Default for App {
+impl Default for Graphics {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl App {
+impl Graphics {
     #[must_use]
     pub fn new() -> Self {
         Self {

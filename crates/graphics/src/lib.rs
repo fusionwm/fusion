@@ -6,9 +6,6 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_errors_doc)]
 
-//#[cfg(feature = "derive")]
-//pub use toolkit_derive::*;
-
 //pub mod headless;
 
 mod content;
@@ -21,13 +18,12 @@ pub use content::*;
 pub use fontdue;
 pub use glam;
 
-pub mod app;
-//pub mod event_loop;
+pub mod graphics;
 pub mod widget;
 pub mod window;
 
 use crate::{
-    app::App,
+    graphics::Graphics,
     rendering::{Gpu, Renderer, commands::CommandBuffer},
     types::Bounds,
     widget::{DesiredSize, FrameContext},
@@ -45,7 +41,7 @@ pub use wl_client::{
 use wl_client::{WlClient, window::WindowLayer};
 
 pub struct EventLoop {
-    app: App,
+    app: Graphics,
     windows: Vec<Window>,
 
     client: WlClient,
@@ -56,7 +52,7 @@ pub struct EventLoop {
 }
 
 impl EventLoop {
-    pub fn new(app: App) -> Result<Self, Error> {
+    pub fn new(app: Graphics) -> Result<Self, Error> {
         let conn = Connection::connect_to_env()?;
 
         let display = conn.display();
@@ -212,7 +208,7 @@ impl EventLoop {
 
 pub trait WindowRoot {
     fn request(&self) -> WindowRequest;
-    fn setup(&mut self, app: &mut App);
+    fn setup(&mut self, app: &mut Graphics);
     fn root_mut(&mut self) -> &mut dyn Windowx;
     fn root(&self) -> &dyn Windowx;
 }
