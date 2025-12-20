@@ -10,8 +10,8 @@ use smithay_client_toolkit::reexports::protocols_wlr::layer_shell::v1::client::{
 use std::{ffi::c_void, ptr::NonNull, sync::Arc};
 use transform::Transform;
 use wayland_client::{
-    protocol::{wl_buffer::WlBuffer, wl_surface::WlSurface},
     Proxy, QueueHandle,
+    protocol::{wl_buffer::WlBuffer, wl_surface::WlSurface},
 };
 use wayland_protocols::xdg::shell::client::{
     xdg_surface::XdgSurface, xdg_toplevel::XdgToplevel, xdg_wm_base::XdgWmBase,

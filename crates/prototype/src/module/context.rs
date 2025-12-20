@@ -2,9 +2,11 @@ use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     path::PathBuf,
+    sync::{Arc, Mutex},
 };
 
 use bytes::Bytes;
+use graphics::graphics::Graphics;
 use http::Request;
 use http_body_util::Empty;
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
@@ -35,10 +37,18 @@ pub struct ExecutionContext {
     tcp_sockets: HashMap<i32, TcpSocket>,
     tcp_streams: HashMap<i32, TcpStream>,
     udp_sockets: HashMap<i32, UdpSocket>,
+
+    //Graphics
+    pub graphics: Arc<Mutex<Graphics>>,
 }
 
 impl ExecutionContext {
-    pub fn new(config: Config, log: PathBuf, capabilities: &[String]) -> Self {
+    pub fn new(
+        graphics: Arc<Mutex<Graphics>>,
+        config: Config,
+        log: PathBuf,
+        capabilities: &[String],
+    ) -> Self {
         let mut capabilities = capabilities.iter().cloned().collect::<HashSet<_>>();
         capabilities.insert("general".to_string());
 
@@ -61,6 +71,9 @@ impl ExecutionContext {
             tcp_sockets: HashMap::new(),
             tcp_streams: HashMap::new(),
             udp_sockets: HashMap::new(),
+
+            //Graphics
+            graphics,
         }
     }
 

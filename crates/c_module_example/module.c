@@ -1,4 +1,4 @@
-#include "../libnmmodule/nms_net_socket_udp.h"
+#include "../libnthm/ui.h"
 #include "allocator/o1heap.h"
 #include "heap.c"
 #include "print.c"
@@ -7,24 +7,19 @@
 void module_init() {
     heap_instance = o1heapInit((void*)&__heap_base, INT_MAX);
 
-    i32 id = nms_net_socket_udp_create("127.0.0.1:12345");
-    if (id < 0) {
-        info("Failed to create socket: %d", id);
-        return;
-    }
+    struct DesktopOptions options = {
+        .title = "C Module Example",
+        .resizable = true,
+        .decorations = true,
+    };
 
-    info("Socket created");
-    i32 result = nms_net_socket_udp_connect(id, "127.0.0.1:12346");
-    if (result < 0) {
-        info("Failed to connect to server");
-        return;
-    }
+    struct WindowLayer layer = {
+        .type = LAYER_DESKTOP,
+        .options = options,
+    };
 
-    nms_net_socket_udp_send(id, "Hello, World!", 14);
-    char buffer[1024];
-    nms_net_socket_udp_recv(id, buffer, 1024);
-    info("Received message: %s", buffer);
-    nms_net_socket_udp_shutdown(id);
+    Window window = create_window("example", &layer, 800, 600);
+    //destroy_window(window);
 }
 
 void module_tick() {}

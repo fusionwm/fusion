@@ -6,9 +6,10 @@ use wgpu::rwh::{
     RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle, WindowHandle,
 };
 use wgpu::{Surface, SurfaceConfiguration};
-use wl_client::window::{DesktopOptions, SpecialOptions, WindowLayer};
 use wl_client::WindowBackend;
+use wl_client::window::{DesktopOptions, SpecialOptions, WindowLayer};
 
+#[derive(Debug, Clone)]
 pub struct WindowRequest {
     pub(crate) id: String,
     pub(crate) layer: WindowLayer,
@@ -24,6 +25,12 @@ impl WindowRequest {
             width: 600,
             height: 400,
         }
+    }
+
+    #[must_use]
+    pub fn with_layer(mut self, layer: WindowLayer) -> Self {
+        self.layer = layer;
+        self
     }
 
     #[must_use]

@@ -1,5 +1,7 @@
 #pragma once
 
+#define Struct(name, fields) typedef struct name { fields } name
+
 #ifdef __cplusplus
 extern "C" {
 #endif

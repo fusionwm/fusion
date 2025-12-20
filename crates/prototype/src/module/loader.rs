@@ -9,7 +9,6 @@ use notify::{
     RecursiveMode, Watcher,
     event::{ModifyKind, RenameMode},
 };
-use smithay::reexports::calloop::EventSource;
 use thiserror::Error;
 use tokio::sync::mpsc::{Receiver, Sender};
 use zip::ZipArchive;
@@ -244,14 +243,14 @@ impl PackedModule {
             zip_module.read_to_end(&mut module)?;
         }
 
-        archive
-            .by_name("config/definition.nc")
-            .map_err(|e| match e {
-                zip::result::ZipError::FileNotFound => {
-                    ModuleLoaderError::MissingWasmFile(file_name.to_string())
-                }
-                other => ModuleLoaderError::Zip(other),
-            })?;
+        //archive
+        //    .by_name("config/definition.nc")
+        //    .map_err(|e| match e {
+        //        zip::result::ZipError::FileNotFound => {
+        //            ModuleLoaderError::MissingWasmFile(file_name.to_string())
+        //        }
+        //        other => ModuleLoaderError::Zip(other),
+        //    })?;
 
         Ok(Self {
             path: file_name.to_string(),

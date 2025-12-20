@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nms_defs.h"
+#include "types.h"
 
 #ifdef __cplusplus
 extern "C" {

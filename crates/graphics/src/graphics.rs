@@ -40,6 +40,35 @@ impl Graphics {
         self.requested_frontends.push(window);
     }
 
+    // TODO: Возможно, стоит сделать метод более безопасным
+    pub fn destroy_window(&mut self, window: *const dyn WindowRoot) {
+        let index = self
+            .requested_frontends
+            .iter()
+            .enumerate()
+            .find(|&(_, b)| std::ptr::eq(b.as_ref(), window))
+            .map(|(i, _)| i);
+
+        if let Some(index) = index {
+            self.requested_frontends.remove(index);
+            return;
+        }
+
+        let index = self
+            .frontends
+            .iter()
+            .enumerate()
+            .find(|&(_, b)| std::ptr::eq(b.as_ref(), window))
+            .map(|(i, _)| i);
+
+        if let Some(index) = index {
+            self.frontends.remove(index);
+            return;
+        }
+
+        panic!("Window '{window:#?}' not found");
+    }
+
     pub(crate) fn tick_logic_frontend(
         &mut self,
         index: usize,

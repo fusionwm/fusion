@@ -4,7 +4,6 @@
 
 mod capabilities;
 mod compositor;
-mod graphics;
 mod module;
 
 use crate::{
@@ -12,10 +11,16 @@ use crate::{
     module::{engine::ModuleEngine, loader::ModuleLoader},
 };
 use bincode::{Decode, Encode};
+use graphics::graphics::Graphics;
 use log::LevelFilter;
 use smithay::reexports::calloop::{self, EventLoop};
-use std::io::Write;
+use std::{
+    intrinsics::breakpoint,
+    io::Write,
+    sync::{Arc, Mutex},
+};
 use thiserror::Error;
+use tokio::task;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -59,8 +64,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = WinitBackend::new().unwrap();
     let mut data = init_compositor(&event_loop, backend)?;
 
+    let graphics = Arc::new(Mutex::new(Graphics::new()));
+
     let module_loader = ModuleLoader::new(error_tx).await?;
-    let mut engine = ModuleEngine::new(module_loader);
+    let mut engine = ModuleEngine::new(module_loader, graphics.clone());
 
     let (executor, scheduler) = calloop::futures::executor()?;
     event_loop
@@ -83,7 +90,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    let mut evl = graphics::EventLoop::new(graphics).unwrap();
+    let task = task::spawn_blocking(|| evl.run().unwrap());
+    let xd = async move {
+        task.await.unwrap();
+    };
+
     scheduler.schedule(tree)?;
+    scheduler.schedule(xd)?;
 
     event_loop.run(None, &mut data, |_| {})?;
 

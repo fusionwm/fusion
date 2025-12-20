@@ -22,6 +22,11 @@ pub mod graphics;
 pub mod widget;
 pub mod window;
 
+pub mod reexports {
+    pub use wl_client::Anchor;
+    pub use wl_client::window::{DesktopOptions, SpecialOptions, TargetMonitor, WindowLayer};
+}
+
 use crate::{
     graphics::Graphics,
     rendering::{Gpu, Renderer, commands::CommandBuffer},
@@ -31,17 +36,18 @@ use crate::{
 };
 pub use error::*;
 pub use rendering::commands;
-use std::{ffi::c_void, ptr::NonNull, sync::Arc, time::Instant};
-use wayland_client::{Connection, EventQueue, Proxy};
-pub use wl_client::window::TargetMonitor;
-pub use wl_client::{
-    Anchor,
-    window::{DesktopOptions, SpecialOptions},
+use std::{
+    ffi::c_void,
+    ptr::NonNull,
+    sync::{Arc, Mutex},
+    time::Instant,
 };
+use wayland_client::{Connection, EventQueue, Proxy};
+use wl_client::Anchor;
 use wl_client::{WlClient, window::WindowLayer};
 
 pub struct EventLoop {
-    app: Graphics,
+    app: Arc<Mutex<Graphics>>,
     windows: Vec<Window>,
 
     client: WlClient,
@@ -52,7 +58,7 @@ pub struct EventLoop {
 }
 
 impl EventLoop {
-    pub fn new(app: Graphics) -> Result<Self, Error> {
+    pub fn new(app: Arc<Mutex<Graphics>>) -> Result<Self, Error> {
         let conn = Connection::connect_to_env()?;
 
         let display = conn.display();
@@ -80,9 +86,9 @@ impl EventLoop {
             let ptr = WindowPointer::new(display_ptr, dummy_ptr);
             let gpu = Gpu::new(ptr)?;
 
-            drop(dummy);
+            //drop(dummy);
 
-            client.destroy_window_backend("dummy");
+            //client.destroy_window_backend("dummy");
             event_queue.roundtrip(&mut client)?; //Destroy dummy
 
             (display_ptr, gpu)
@@ -115,7 +121,8 @@ impl EventLoop {
             frame.position = self.client.pointer().position();
             frame.buttons = self.client.pointer().buttons();
 
-            self.app.dispatch_queue(&self.gpu)?;
+            let mut app = self.app.lock().unwrap();
+            app.dispatch_queue(&self.gpu)?;
 
             for (i, window) in self.windows.iter_mut().enumerate() {
                 let mut backend = window
@@ -138,7 +145,7 @@ impl EventLoop {
                     backend.set_resized();
                 }
 
-                self.app.tick_logic_frontend(
+                app.tick_logic_frontend(
                     i,
                     window.configuration.width as f32,
                     window.configuration.height as f32,
@@ -151,7 +158,7 @@ impl EventLoop {
                     //return Ok(());
                 }
 
-                let mut commands = self.app.tick_render_frontend(i);
+                let mut commands = app.tick_render_frontend(i);
                 window.renderer.render(
                     &self.gpu,
                     &window.surface,
@@ -167,11 +174,12 @@ impl EventLoop {
     }
 
     fn init_windows_backends(&mut self) -> Result<(), Error> {
-        if self.app.requested_frontends.is_empty() {
+        let mut app = self.app.lock().unwrap();
+        if app.requested_frontends.is_empty() {
             return Ok(());
         }
 
-        let requests = std::mem::take(&mut self.app.requested_frontends);
+        let requests = std::mem::take(&mut app.requested_frontends);
         let qh = self.event_queue.handle();
         requests.into_iter().try_for_each(|frontend| {
             let request = frontend.request();
@@ -197,7 +205,7 @@ impl EventLoop {
             let window = Window::new(backend, surface, configuration, renderer);
 
             self.windows.push(window);
-            self.app.frontends.push(frontend);
+            app.frontends.push(frontend);
 
             Ok::<(), Error>(())
         })?;
@@ -206,14 +214,14 @@ impl EventLoop {
     }
 }
 
-pub trait WindowRoot {
+pub trait WindowRoot: Send + Sync {
     fn request(&self) -> WindowRequest;
     fn setup(&mut self, app: &mut Graphics);
-    fn root_mut(&mut self) -> &mut dyn Windowx;
-    fn root(&self) -> &dyn Windowx;
+    fn root_mut(&mut self) -> &mut dyn WindowContent;
+    fn root(&self) -> &dyn WindowContent;
 }
 
-pub trait Windowx {
+pub trait WindowContent {
     fn desired_size(&self) -> DesiredSize;
     fn anchor(&self) -> Anchor;
     fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>);
@@ -222,7 +230,83 @@ pub trait Windowx {
 }
 
 pub trait Container {
-    fn add_child(&mut self, child: Box<dyn Windowx>);
-    fn children(&self) -> &[Box<dyn Windowx>];
-    fn children_mut(&mut self) -> &mut [Box<dyn Windowx>];
+    fn add_child(&mut self, child: Box<dyn WindowContent>);
+    fn children(&self) -> &[Box<dyn WindowContent>];
+    fn children_mut(&mut self) -> &mut [Box<dyn WindowContent>];
+}
+
+mod tests {
+    use glam::Vec2;
+    use wl_client::{
+        Anchor,
+        window::{DesktopOptions, WindowLayer},
+    };
+
+    use crate::{
+        EventLoop, WindowContent, WindowRoot,
+        commands::{CommandBuffer, DrawCommand, DrawRectCommand},
+        types::{Argb8888, Bounds, Color, Stroke},
+        widget::DesiredSize,
+        window::WindowRequest,
+    };
+
+    #[derive(Default)]
+    pub struct WindowSetup {
+        window: SomeWindow,
+    }
+
+    impl WindowRoot for WindowSetup {
+        fn request(&self) -> crate::window::WindowRequest {
+            WindowRequest {
+                id: "SomeWindow".into(),
+                layer: WindowLayer::Desktop(DesktopOptions::default()),
+                width: 100,
+                height: 100,
+            }
+        }
+
+        fn setup(&mut self, app: &mut crate::graphics::Graphics) {}
+
+        fn root_mut(&mut self) -> &mut dyn WindowContent {
+            &mut self.window
+        }
+
+        fn root(&self) -> &dyn WindowContent {
+            &self.window
+        }
+    }
+
+    #[derive(Default)]
+    pub struct SomeWindow;
+    impl WindowContent for SomeWindow {
+        fn desired_size(&self) -> crate::widget::DesiredSize {
+            DesiredSize::Fill
+        }
+
+        fn anchor(&self) -> wl_client::Anchor {
+            Anchor::empty()
+        }
+
+        fn draw<'frame>(&'frame self, out: &mut crate::commands::CommandBuffer<'frame>) {
+            out.push(DrawCommand::Rect(DrawRectCommand::new(
+                Bounds::new(Vec2::ZERO, Vec2::new(100.0, 100.0)),
+                Argb8888::BROWN,
+                Stroke::NONE,
+            )));
+        }
+
+        fn layout(&mut self, bounds: crate::types::Bounds) {}
+
+        fn update(&mut self, ctx: &crate::widget::FrameContext) {}
+    }
+
+    #[test]
+    fn test() {
+        let mut graphics = crate::graphics::Graphics::new();
+        let mut window = WindowSetup::default();
+        graphics.add_window(Box::new(window));
+
+        let mut event_loop = EventLoop::new(graphics).unwrap();
+        event_loop.run();
+    }
 }

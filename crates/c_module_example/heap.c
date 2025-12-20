@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../libnmmodule/nms_defs.h"
-#include "../libnmmodule/nms_module.h"
+#include "../libnthm/types.h"
+#include "../libnthm/module.h"
 #include "allocator/o1heap.h"
 
 O1HeapInstance *heap_instance;

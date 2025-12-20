@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{
     ModuleListFilter, SocketCommand, SocketCommandResult,
     capabilities::get_imports,
@@ -9,6 +11,7 @@ use crate::{
         table::CapabilityTable,
     },
 };
+use graphics::graphics::Graphics;
 use log::{error, info};
 use tokio::{
     io::AsyncWriteExt,
@@ -48,10 +51,12 @@ pub struct ModuleEngine {
     stopped: Vec<ModuleWorkspace>,
 
     socket: UnixListener,
+
+    graphics: Arc<Mutex<Graphics>>,
 }
 
 impl ModuleEngine {
-    pub fn new(loader: ModuleLoader) -> Self {
+    pub fn new(loader: ModuleLoader, graphics: Arc<Mutex<Graphics>>) -> Self {
         ensure_directory_exists();
 
         const SOCKET_PATH: &str = "nethalym-engine.sock";
@@ -71,6 +76,7 @@ impl ModuleEngine {
             running: Vec::new(),
             stopped: Vec::new(),
             socket,
+            graphics,
         }
     }
 
@@ -82,8 +88,12 @@ impl ModuleEngine {
             .join("nethalym/logs")
             .join(packed.manifest.name());
         println!("Log file path: {}", log_file.display());
-        let context =
-            ExecutionContext::new(packed.config, log_file, packed.manifest.capabilities());
+        let context = ExecutionContext::new(
+            self.graphics.clone(),
+            packed.config,
+            log_file,
+            packed.manifest.capabilities(),
+        );
         let mut store = Store::new(&self.engine, context);
         let module = Module::from_binary(&self.engine, &packed.module)?;
 

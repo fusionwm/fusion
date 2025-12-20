@@ -22,6 +22,7 @@ use smithay_client_toolkit::reexports::protocols_wlr::layer_shell::v1::client::{
 };
 
 use wayland_client::{
+    Connection, Dispatch, Proxy, QueueHandle,
     protocol::{
         wl_buffer::{Event as WlBufferEvent, WlBuffer},
         wl_callback::{Event as WlCallbackEvent, WlCallback},
@@ -34,7 +35,6 @@ use wayland_client::{
         wl_shm_pool::{Event as WlShmPoolEvent, WlShmPool},
         wl_surface::{Event as WlSurfaceEvent, WlSurface},
     },
-    Connection, Dispatch, Proxy, QueueHandle,
 };
 
 use wayland_protocols::xdg::shell::client::{
@@ -96,7 +96,8 @@ impl WlClient {
         let (surface, pool, buffer) = self.create_surface(&qh, &arc_id, width, height);
 
         let window = Arc::new(Mutex::new(Window::new(
-            Some(self.layer_shell.as_ref().expect("unreachable")),
+            None, //TODO
+            //Some(self.layer_shell.as_ref().expect("unreachable")),
             Some(self.xdg_wm_base.as_ref().expect("unreachable")),
             qh,
             arc_id,
@@ -239,8 +240,10 @@ impl Dispatch<WlSurface, WindowId> for WlClient {
         _: &QueueHandle<Self>,
     ) {
         match event {
-            WlSurfaceEvent::Enter { output: _ } => println!("Enter"),
-            WlSurfaceEvent::Leave { output: _ } => println!("Leave"),
+            //WlSurfaceEvent::Enter { output: _ } => println!("Enter"),
+            //WlSurfaceEvent::Leave { output: _ } => println!("Leave"),
+            WlSurfaceEvent::Enter { output: _ } => {}
+            WlSurfaceEvent::Leave { output: _ } => {}
 
             WlSurfaceEvent::PreferredBufferScale { factor } => {
                 let mut window = state.windows.get_mut(id.as_str()).unwrap().lock().unwrap();

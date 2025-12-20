@@ -1,10 +1,12 @@
 pub mod general;
+pub mod graphics;
 pub mod net;
 pub mod system;
 
 use crate::{
     capabilities::{
         general::log::{nms_log_debug, nms_log_error, nms_log_info, nms_log_warn},
+        graphics::{create_window, destroy_window},
         net::{
             http::{
                 net_http_request, net_http_request_done, net_http_send_request,
@@ -42,6 +44,14 @@ fn read_wasm_memory_slice<'a>(
     let mem = memory.data(caller);
     let offset = ptr as usize;
     &mem[offset..offset + length as usize]
+}
+
+fn get_wasm_memory<'a>(caller: &'a mut Caller<'_, ExecutionContext>) -> &'a [u8] {
+    let memory = caller
+        .get_export("memory")
+        .and_then(Extern::into_memory)
+        .expect("Memory export not found");
+    memory.data(caller)
 }
 
 fn read_wasm_string<'a>(caller: &'a mut Caller<'_, ExecutionContext>, ptr: i32) -> &'a str {
@@ -163,6 +173,10 @@ pub fn get_imports<'module>(
                 "nms_net_set_uri" => net_http_set_uri,
                 "nms_net_request_done" => net_http_request_done,
                 "nms_net_http_send_request" => net_http_send_request,
+            }
+            capability: "general.graphics" => {
+                "create_window" => create_window,
+                "destroy_window" => destroy_window,
             }
         ));
     });
