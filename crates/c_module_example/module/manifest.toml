@@ -6,7 +6,8 @@ authors = [
     { name = "Irisu", email = "mrapacheee@gmail.com" }
 ]
 
-capabilities = ["general.graphics", "net.socket.tcp", "net.socket.udp"]
+#capabilities = ["general.graphics", "net.socket.tcp", "net.socket.udp"]
+capabilities = ["general.graphics"]
 
 #custom = ["message", "test"]
 

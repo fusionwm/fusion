@@ -1,7 +1,10 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex as StdMutex},
+    time::Duration,
+};
 
 use crate::{
-    ModuleListFilter, SocketCommand, SocketCommandResult,
+    ModuleListFilter,
     capabilities::get_imports,
     module::{
         context::ExecutionContext,
@@ -13,16 +16,8 @@ use crate::{
 };
 use graphics::graphics::Graphics;
 use log::{error, info};
-use tokio::{
-    io::AsyncWriteExt,
-    net::{UnixListener, UnixStream},
-};
+use tokio::sync::Mutex as TokioMutex;
 use wasmtime::{Engine, Instance, Memory, Module, Store};
-
-pub enum EngineEvent {
-    Loader,
-    Engine,
-}
 
 fn ensure_directory_exists() {
     let root = dirs::config_dir().unwrap().join("nethalym");
@@ -43,51 +38,59 @@ fn ensure_directory_exists() {
 
 pub struct ModuleEngine {
     engine: Engine,
-    loader: ModuleLoader,
+    loader: Arc<TokioMutex<ModuleLoader>>,
     table: CapabilityTable,
 
     failed: Vec<FailedModule>,
     running: Vec<ModuleWorkspace>,
     stopped: Vec<ModuleWorkspace>,
 
-    socket: UnixListener,
-
-    graphics: Arc<Mutex<Graphics>>,
+    //socket: UnixListener,
+    graphics: Arc<StdMutex<Graphics>>,
 }
 
 impl ModuleEngine {
-    pub fn new(loader: ModuleLoader, graphics: Arc<Mutex<Graphics>>) -> Self {
+    const SOCKET_PATH: &str = "nethalym-engine.sock";
+
+    pub fn new(graphics: Arc<StdMutex<Graphics>>) -> Result<Self, crate::Error> {
         ensure_directory_exists();
 
-        const SOCKET_PATH: &str = "nethalym-engine.sock";
-        let _ = std::fs::remove_file(SOCKET_PATH);
+        let _ = std::fs::remove_file(Self::SOCKET_PATH);
 
-        let mut engine_config = wasmtime::Config::new();
-        engine_config.async_support(true);
-        let engine = Engine::new(&engine_config).unwrap();
+        let engine = Engine::default();
 
-        let socket = UnixListener::bind(SOCKET_PATH).unwrap();
+        let loader = Arc::new(TokioMutex::new(ModuleLoader::new()?));
+        let loader_clone = loader.clone();
+        tokio::task::spawn(async move {
+            loop {
+                if let Ok(mut loader) = loader_clone.try_lock() {
+                    loader.handle_events();
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        });
 
-        Self {
+        Ok(Self {
             engine,
             loader,
             table: CapabilityTable::default(),
             failed: Vec::new(),
             running: Vec::new(),
             stopped: Vec::new(),
-            socket,
+            //socket,
             graphics,
-        }
+        })
     }
 
-    async fn prepare_module(&mut self, packed: PackedModule) -> Result<(), crate::Error> {
+    fn prepare_module(&mut self, packed: PackedModule) -> Result<(), crate::Error> {
         info!("[{}] Preparing module", packed.manifest.name());
 
         let log_file = dirs::config_dir()
             .unwrap()
-            .join("nethalym/logs")
+            .join("nethalym")
+            .join("logs")
             .join(packed.manifest.name());
-        println!("Log file path: {}", log_file.display());
+
         let context = ExecutionContext::new(
             self.graphics.clone(),
             packed.config,
@@ -98,7 +101,7 @@ impl ModuleEngine {
         let module = Module::from_binary(&self.engine, &packed.module)?;
 
         let imports = get_imports(module.imports(), &mut store);
-        let instance = Instance::new_async(&mut store, &module, &imports).await?;
+        let instance = Instance::new(&mut store, &module, &imports)?;
 
         let mem = instance
             .get_export(&mut store, "memory")
@@ -123,23 +126,33 @@ impl ModuleEngine {
         Ok(())
     }
 
-    pub async fn tick(&mut self) -> Result<(), crate::Error> {
-        let loaded = self.loader.get_raw_modules();
-        for module in loaded {
+    pub fn load_modules(&mut self) {
+        let modules = if let Ok(mut loader) = self.loader.try_lock() {
+            loader.get_raw_modules()
+        } else {
+            return;
+        };
+
+        for module in modules {
+            println!("[Engine] Loading module: {}", module.manifest.name());
             let path = module.path.clone();
             let manifest = module.manifest.clone();
 
-            if let Err(err) = self.prepare_module(module).await {
+            if let Err(err) = self.prepare_module(module) {
                 error!("[{}] Unable to prepare module: {}", manifest.name(), err);
                 self.failed.push(FailedModule { path, manifest });
                 continue;
             }
             let last = self.running.last_mut().unwrap();
-            if let Err(err) = last.init().await {
+            if let Err(err) = last.init() {
                 error!("[{}] Unable to initialize module: {}", manifest.name(), err);
                 self.failed.push(FailedModule { path, manifest });
             }
         }
+    }
+
+    pub fn tick(&mut self) {
+        self.load_modules();
 
         let mut i = 0;
         while i < self.running.len() {
@@ -147,7 +160,7 @@ impl ModuleEngine {
 
             let mut keep = true;
 
-            if let Err(err) = module.tick().await {
+            if let Err(err) = module.tick() {
                 error!(
                     "[{}] Failed to tick module: {}",
                     module.manifest.name(),
@@ -155,7 +168,7 @@ impl ModuleEngine {
                 );
 
                 if module.is_support_restore() {
-                    match module.get_restore_state().await {
+                    match module.get_restore_state() {
                         Err(err) => {
                             error!(
                                 "[{}] Failed to create restore state: {}",
@@ -179,7 +192,7 @@ impl ModuleEngine {
                                     manifest: module.manifest.clone(),
                                 });
                                 keep = false;
-                            } else if let Err(err) = module.restore(state).await {
+                            } else if let Err(err) = module.restore(state) {
                                 error!(
                                     "[{}] Failed to restore module: {}",
                                     module.manifest.name(),
@@ -216,9 +229,9 @@ impl ModuleEngine {
                 self.running.remove(i); // удаляем из вектора
             }
         }
-        Ok(())
     }
 
+    /*
     fn prepare_module_list(&self, filter: ModuleListFilter) -> Vec<String> {
         match filter {
             ModuleListFilter::All => self
@@ -247,13 +260,6 @@ impl ModuleEngine {
                 .map(|m| m.manifest.name().to_string())
                 .collect::<Vec<_>>(),
         }
-    }
-
-    pub fn poll_events(&mut self) {}
-
-    pub async fn handle_events(&mut self) {
-        //self.handle_socket_server().await.unwrap();
-        self.loader.handle_events().await;
     }
 
     async fn handle_socket_server(&mut self) -> std::io::Result<()> {
@@ -297,11 +303,14 @@ impl ModuleEngine {
         }
     }
 
+
     pub fn restart_module(&mut self, index: usize) {
         let module = self.failed.remove(index);
         ModuleLoader::create_packed_module(module.path).unwrap();
         //TODO: Implement module restart logic
     }
+
+    */
 }
 
 pub struct ModuleWorkspace {
@@ -313,19 +322,39 @@ pub struct ModuleWorkspace {
 }
 
 impl ModuleWorkspace {
-    pub async fn init(&mut self) -> Result<(), crate::Error> {
+    pub const fn new(
+        path: String,
+        manifest: Manifest,
+        store: Store<ExecutionContext>,
+        instance: Instance,
+        stdlib: StandardLibrary,
+    ) -> Self {
+        ModuleWorkspace {
+            path,
+            manifest,
+            store,
+            instance,
+            stdlib,
+        }
+    }
+
+    pub const fn manifest(&self) -> &Manifest {
+        &self.manifest
+    }
+
+    pub fn init(&mut self) -> Result<(), crate::Error> {
         info!("[{}] Initializing module", self.manifest.name());
-        self.stdlib.init(&mut self.store).await?;
+        self.stdlib.init(&mut self.store)?;
         Ok(())
     }
 
-    pub async fn tick(&mut self) -> Result<(), crate::Error> {
-        self.stdlib.tick(&mut self.store).await?;
+    pub fn tick(&mut self) -> Result<(), crate::Error> {
+        self.stdlib.tick(&mut self.store)?;
         Ok(())
     }
 
-    pub async fn stop(&mut self) -> Result<(), crate::Error> {
-        self.stdlib.stop(&mut self.store).await?;
+    pub fn stop(&mut self) -> Result<(), crate::Error> {
+        self.stdlib.stop(&mut self.store)?;
         Ok(())
     }
 
@@ -333,15 +362,15 @@ impl ModuleWorkspace {
         self.stdlib.is_support_restore()
     }
 
-    pub async fn get_restore_state(&mut self) -> Result<Vec<u8>, crate::Error> {
+    pub fn get_restore_state(&mut self) -> Result<Vec<u8>, crate::Error> {
         debug_assert!(self.is_support_restore());
         let memory = self.get_memory();
-        self.stdlib.get_restore_state(memory, &mut self.store).await
+        self.stdlib.get_restore_state(memory, &mut self.store)
     }
 
-    pub async fn restore(&mut self, state: Vec<u8>) -> Result<(), crate::Error> {
+    pub fn restore(&mut self, state: Vec<u8>) -> Result<(), crate::Error> {
         let memory = self.get_memory();
-        self.stdlib.restore(&mut self.store, memory, state).await
+        self.stdlib.restore(&mut self.store, memory, state)
     }
 
     fn get_memory(&mut self) -> Memory {

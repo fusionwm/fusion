@@ -8,19 +8,13 @@ mod module;
 
 use crate::{
     compositor::{data, init_compositor, window::WinitBackend},
-    module::{engine::ModuleEngine, loader::ModuleLoader},
+    module::loader::ModuleLoaderError,
 };
 use bincode::{Decode, Encode};
-use graphics::graphics::Graphics;
 use log::LevelFilter;
-use smithay::reexports::calloop::{self, EventLoop};
-use std::{
-    intrinsics::breakpoint,
-    io::Write,
-    sync::{Arc, Mutex},
-};
+use smithay::reexports::calloop::EventLoop;
+use std::io::Write;
 use thiserror::Error;
-use tokio::task;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -35,6 +29,9 @@ pub enum Error {
 
     #[error("{0}")]
     Module(#[from] wasmtime::Error),
+
+    #[error("{0}")]
+    ModuleLoader(#[from] ModuleLoaderError),
 }
 
 fn setup_logging() {
@@ -62,37 +59,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let backend = WinitBackend::new().unwrap();
     let mut data = init_compositor(&event_loop, backend)?;
-
-    let (executor, scheduler) = calloop::futures::executor()?;
-    event_loop
-        .handle()
-        .insert_source(executor, |(), (), _| {})?;
-
-    let tree = async move {
-        tokio::select! {
-            _loader = engine.handle_events() => {},
-            _main = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
-                if let Err(error) = engine.tick().await {
-                    println!("{error}");
-                }
-            }
-            error = error_rx.recv() => {
-                if let Some(error) = error {
-                    println!("{error}");
-                }
-            },
-        }
-    };
-
-    let mut evl = graphics::EventLoop::new(graphics).unwrap();
-    let task = task::spawn_blocking(|| evl.run().unwrap());
-    let xd = async move {
-        task.await.unwrap();
-    };
-
-    scheduler.schedule(tree)?;
-    scheduler.schedule(xd)?;
-
     event_loop.run(None, &mut data, |_| {})?;
 
     Ok(())

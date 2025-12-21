@@ -54,18 +54,18 @@ impl StandardLibrary {
         })
     }
 
-    pub async fn init(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
-        self.init.call_async(&mut store, ()).await?;
+    pub fn init(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
+        self.init.call(store, ())?;
         Ok(())
     }
 
-    pub async fn tick(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
-        self.tick.call_async(&mut store, ()).await?;
+    pub fn tick(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
+        self.tick.call(store, ())?;
         Ok(())
     }
 
-    pub async fn stop(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
-        self.stop.call_async(&mut store, ()).await?;
+    pub fn stop(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
+        self.stop.call(store, ())?;
         Ok(())
     }
 
@@ -73,13 +73,14 @@ impl StandardLibrary {
         self.restore.is_some()
     }
 
-    pub async fn get_restore_state(
+    pub fn get_restore_state(
         &self,
         memory: Memory,
         mut store: &mut Store<ExecutionContext>,
     ) -> Result<Vec<u8>, crate::Error> {
         let func = self.on_failure.as_ref().unwrap();
-        let ptr = func.call_async(&mut store, ()).await? as usize;
+        //let ptr = func.call_async(&mut store, ())? as usize;
+        let ptr = func.call(&mut store, ())? as usize;
 
         if ptr == 0 {
             return Ok(Vec::new());
@@ -105,7 +106,7 @@ impl StandardLibrary {
         Ok(data)
     }
 
-    pub async fn restore(
+    pub fn restore(
         &self,
         mut store: &mut Store<ExecutionContext>,
         memory: Memory,
@@ -121,7 +122,8 @@ impl StandardLibrary {
         memory.data_mut(&mut store)[ptr..ptr + length].copy_from_slice(&state[4..]);
 
         let func = self.restore.as_ref().unwrap();
-        func.call_async(&mut store, ptr as i32).await?;
+        func.call(&mut store, ptr as i32)?;
+        //func.call_async(&mut store, ptr as i32)?;
 
         Ok(())
     }

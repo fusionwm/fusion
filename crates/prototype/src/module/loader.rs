@@ -10,7 +10,7 @@ use notify::{
     event::{ModifyKind, RenameMode},
 };
 use thiserror::Error;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Receiver;
 use zip::ZipArchive;
 
 use crate::module::{config::Config, manifest::Manifest};
@@ -48,30 +48,20 @@ pub enum ModuleLoaderError {
 pub type ModuleLoaderResult<T> = Result<T, ModuleLoaderError>;
 
 pub struct ModuleLoader {
-    error_tx: Sender<ModuleLoaderError>,
     file_rx: Receiver<notify::Result<notify::Event>>,
     loaded: HashMap<PathBuf, PackedModule>,
     renamed: Option<PackedModule>,
 }
 
 impl ModuleLoader {
-    pub async fn new(error_tx: Sender<ModuleLoaderError>) -> Result<Self, ModuleLoaderError> {
+    pub fn new() -> Result<Self, ModuleLoaderError> {
         let config_dir = dirs::config_dir().ok_or(ModuleLoaderError::ConfigDirectoryNotDefined)?;
-        let modules_dir = config_dir.join("nethalym/modules");
+        let modules_dir = config_dir.join("nethalym").join("modules");
         if !modules_dir.exists() {
             std::fs::create_dir_all(&modules_dir)?;
         }
 
         let (file_tx, file_rx) = tokio::sync::mpsc::channel(100);
-
-        let mut instance = Self {
-            error_tx,
-            file_rx,
-            loaded: HashMap::new(),
-            renamed: None,
-        };
-
-        instance.preload_modules(&modules_dir).await?;
 
         let thread_dir = modules_dir.clone();
         tokio::task::spawn_blocking(move || {
@@ -86,7 +76,11 @@ impl ModuleLoader {
             }
         });
 
-        Ok(instance)
+        Ok(Self {
+            file_rx,
+            loaded: HashMap::new(),
+            renamed: None,
+        })
     }
 
     async fn preload_modules(&mut self, modules_dir: &PathBuf) -> ModuleLoaderResult<()> {
@@ -98,8 +92,7 @@ impl ModuleLoader {
             if path.is_file() && path.extension().is_some_and(|ext| ext == "lym") {
                 match Self::create_packed_module(&path) {
                     Ok(module) => {
-                        //println!("{:#?}", module.manifest);
-                        info!("Preload module: {}", module.manifest.name());
+                        info!("[Loader] Load module: {}", module.manifest.name());
                         if let Some(cap) = module.manifest.custom_capabilities() {
                             info!(
                                 "[{}] Available capabilities: {:?}",
@@ -109,7 +102,7 @@ impl ModuleLoader {
                         }
                         self.loaded.insert(path, module);
                     }
-                    Err(error) => self.error_tx.send(error).await.unwrap(), //TODO Error
+                    Err(error) => log::error!("[Loader] {error}"),
                 }
             }
         }
@@ -117,12 +110,12 @@ impl ModuleLoader {
         Ok(())
     }
 
-    pub async fn handle_events(&mut self) {
-        if let Some(event) = self.file_rx.recv().await {
+    pub fn handle_events(&mut self) {
+        while let Ok(event) = self.file_rx.try_recv() {
             let mut event = match event {
                 Ok(events) => events,
                 Err(error) => {
-                    let _ = self.error_tx.send(error.into()).await; //TODO Error
+                    log::error!("[Loader] {error}");
                     return;
                 }
             };
@@ -131,8 +124,8 @@ impl ModuleLoader {
                 notify::EventKind::Create(_) => {
                     for path in event.paths {
                         let metadata = std::fs::metadata(&path)
-                            .map_err(async |err| {
-                                let _ = self.error_tx.send(err.into()).await;
+                            .map_err(|error| {
+                                log::error!("[Loader] {error}");
                             })
                             .ok()
                             .unwrap();
@@ -143,20 +136,24 @@ impl ModuleLoader {
 
                         match Self::create_packed_module(&path) {
                             Ok(module) => {
-                                info!("Load module: {}", module.manifest.name());
+                                info!("[Loader] Read module: {}", module.manifest.name());
                                 if let Some(cap) = module.manifest.custom_capabilities() {
-                                    info!("Available capabilities: {cap:#?}");
+                                    info!(
+                                        "[{}] Available capabilities: {cap:#?}",
+                                        module.manifest.name()
+                                    );
                                 }
+
                                 self.loaded.insert(path, module);
                             }
-                            Err(error) => self.error_tx.send(error).await.unwrap(), //TODO Error
+                            Err(error) => log::error!("[Loader] {error}"),
                         }
                     }
                 }
                 notify::EventKind::Remove(_) => {
                     for path in event.paths {
                         if let Some(module) = self.loaded.remove(&path) {
-                            info!("Unload module: {}", module.manifest.name());
+                            info!("[Loader] Unload module: {}", module.manifest.name());
                         }
                     }
                 }
@@ -169,9 +166,20 @@ impl ModuleLoader {
                                 self.renamed = self.loaded.remove(&path);
                             }
                             RenameMode::To => {
-                                info!("Rename module file: {}", path.display());
-                                let renamed = self.renamed.take().expect("Unreachable!");
-                                self.loaded.insert(path, renamed);
+                                info!("[Loader] Rename module file: {}", path.display());
+                                if let Some(renamed) = self.renamed.take() {
+                                    self.loaded.insert(path, renamed);
+                                } else {
+                                    match Self::create_packed_module(&path) {
+                                        Ok(module) => {
+                                            self.loaded.insert(path, module);
+                                        }
+                                        Err(err) => {
+                                            log::error!("[Loader] {err}");
+                                        }
+                                    }
+                                }
+                                //let renamed = self.renamed.take().expect("Unreachable!");
                             }
                             _ => {}
                         }
@@ -200,8 +208,10 @@ impl ModuleLoader {
     }
 
     pub fn get_raw_modules(&mut self) -> Vec<PackedModule> {
-        let vec = self.loaded.values().cloned().collect::<Vec<_>>();
-        self.loaded.clear();
+        let mut vec = vec![];
+        self.loaded.drain().for_each(|(_, v)| {
+            vec.push(v);
+        });
         vec
     }
 }

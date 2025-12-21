@@ -75,7 +75,11 @@ pub struct App<B: Backend + 'static> {
 }
 
 impl<B: Backend> App<B> {
-    pub fn init(dh: DisplayHandle, backend: B, loop_signal: LoopSignal) -> Self {
+    pub fn init(
+        dh: DisplayHandle,
+        backend: B,
+        loop_signal: LoopSignal,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         // Композитор нашего композитора
         let compositor_state = CompositorState::new::<Self>(&dh);
 
@@ -119,11 +123,9 @@ impl<B: Backend> App<B> {
 
         // Настройка модулей
         let graphics = Arc::new(Mutex::new(Graphics::new()));
-        let (error_tx, mut error_rx) = tokio::sync::mpsc::channel(16);
-        let module_loader = ModuleLoader::new(error_tx).await?;
-        let mut engine = ModuleEngine::new(module_loader, graphics.clone());
+        let mut engine = ModuleEngine::new(graphics.clone())?;
 
-        Self {
+        Ok(Self {
             compositor_state,
             data_device_state,
             seat_state,
@@ -137,7 +139,7 @@ impl<B: Backend> App<B> {
             backend,
 
             engine,
-        }
+        })
     }
 
     fn unconstrain_popup(&self, popup: &PopupSurface) {
