@@ -85,7 +85,7 @@ impl Graphics {
         ));
     }
 
-    pub(crate) fn tick_render_frontend(&mut self, index: usize) -> CommandBuffer {
+    pub(crate) fn tick_render_frontend(&mut self, index: usize) -> CommandBuffer<'_> {
         let frontend = &mut self.frontends[index];
         let root = frontend.root_mut();
         let mut commands = CommandBuffer::new(&self.content);

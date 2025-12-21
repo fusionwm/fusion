@@ -1,9 +1,7 @@
-use smithay::backend::winit::{WinitEvent, WinitEventLoop, WinitGraphicsBackend};
-use smithay::output::Mode;
+use smithay::backend::winit::{WinitEventLoop, WinitGraphicsBackend};
 use smithay::{backend::renderer::gles::GlesRenderer, output};
 
 use crate::compositor::backend::Backend;
-use crate::compositor::state::App;
 
 pub struct WinitBackend {
     pub backend: WinitGraphicsBackend<GlesRenderer>,

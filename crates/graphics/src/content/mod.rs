@@ -1,9 +1,9 @@
 mod svg;
 
 use crate::{
-    content::svg::{SvgData, SvgRequest},
-    rendering::{material::Material, Gpu},
     Error,
+    content::svg::{SvgData, SvgRequest},
+    rendering::{Gpu, material::Material},
 };
 use fontdue::{Font, FontSettings};
 use std::{
@@ -11,8 +11,8 @@ use std::{
     fs,
     path::PathBuf,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 pub use svg::SvgHandle;
@@ -243,9 +243,8 @@ fn get_asset_path() -> PathBuf {
     // Debug
     #[cfg(debug_assertions)]
     {
-        use std::path::Path;
-
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("assets")
+        std::env::current_dir().unwrap().join("assets")
+        //Path::new(env!("CARGO_MANIFEST_DIR")).join("assets")
     }
 
     // Release

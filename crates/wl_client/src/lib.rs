@@ -96,9 +96,9 @@ impl WlClient {
         let (surface, pool, buffer) = self.create_surface(&qh, &arc_id, width, height);
 
         let window = Arc::new(Mutex::new(Window::new(
-            None, //TODO
-            //Some(self.layer_shell.as_ref().expect("unreachable")),
-            Some(self.xdg_wm_base.as_ref().expect("unreachable")),
+            //None, //TODO
+            Some(self.layer_shell.as_ref().expect("unreachable")), //Работает только если композитор поддерживает wlr_layer_shell
+            Some(self.xdg_wm_base.as_ref().expect("unreachable")), //Работает только если композитор поддерживает xdg_shell
             qh,
             arc_id,
             surface,
@@ -325,7 +325,8 @@ impl Dispatch<XdgSurface, WindowId> for WlClient {
             let mut window = state.windows.get_mut(id.as_str()).unwrap().lock().unwrap();
             window.resize_pool_if_needed();
             window.resize_buffer_if_needed();
-            window.commit();
+            window.can_draw = true; //TODO??
+            //window.commit();
         }
     }
 }
@@ -402,7 +403,7 @@ impl Dispatch<ZwlrLayerSurfaceV1, WindowId> for WlClient {
                 surface.ack_configure(serial);
                 let mut window = state.windows.get_mut(id.as_str()).unwrap().lock().unwrap();
                 window.resize_buffer_if_needed();
-                window.draw();
+                window.can_draw = true;
             }
             ZwlrLayerSurfaceV1Event::Closed => {
                 println!("Layer surface event 'closed'");

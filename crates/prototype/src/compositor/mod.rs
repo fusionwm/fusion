@@ -90,7 +90,7 @@ pub fn init_compositor(
     )?;
 
     // Создаем состояние нашего композитора и передаём все глобальные объекты к которым мы будем обращаться
-    let state = App::init(dh.clone(), backend, event_loop.get_signal())?;
+    let state = App::init(&dh, backend, event_loop.get_signal())?;
 
     // Данные хранящиеся в цикле событий, мы должны получать доступ к дисплею и состоянию композитора.
     let mut data = data::Data {

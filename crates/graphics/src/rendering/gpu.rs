@@ -3,8 +3,8 @@ use wgpu::{
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureUsages,
 };
 
-use crate::window::WindowPointer;
 use crate::Error;
+use crate::window::WindowPointer;
 
 pub struct Gpu {
     pub instance: Instance,

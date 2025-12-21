@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use graphics::graphics::Graphics;
+use graphics::{InternalClient, graphics::Graphics};
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
     delegate_compositor, delegate_data_device, delegate_output, delegate_seat, delegate_shm,
@@ -76,27 +76,27 @@ pub struct App<B: Backend + 'static> {
 
 impl<B: Backend> App<B> {
     pub fn init(
-        dh: DisplayHandle,
+        dh: &DisplayHandle,
         backend: B,
         loop_signal: LoopSignal,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         // Композитор нашего композитора
-        let compositor_state = CompositorState::new::<Self>(&dh);
+        let compositor_state = CompositorState::new::<Self>(dh);
 
         // Буфер общей памяти для разделения буферов с клиентами.
         // Например, wl_buffer использует wl_shm для создания общего буфера
         // который будет использоваться композитором для
         // доступа к содержимому поверхности клиента.
-        let shm_state = ShmState::new::<Self>(&dh, vec![]);
+        let shm_state = ShmState::new::<Self>(dh, vec![]);
 
         // Вывод - это пространство которое композитор использует.
         // OutputManagerState говорит wl_output использовать xdg-output extension.
-        let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
+        let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(dh);
 
         // Используется для настольных приложений.
         // Определяется два типа Wayland поверхностей клиентов которые могут быть использованы.
         // "toplevel" (для приложений) и "popup" (для диалоговых окон, подсказок и т.д.)
-        let xdg_shell_state = XdgShellState::new::<Self>(&dh);
+        let xdg_shell_state = XdgShellState::new::<Self>(dh);
 
         // Seat - группа устройств ввод такие как клавиатуры, мыши и т.д. Это управляет состоянем Seat.
         let mut seat_state = SeatState::<Self>::new();
@@ -107,10 +107,10 @@ impl<B: Backend> App<B> {
         let space = Space::<Window>::default();
 
         // Управляет копированием/вставкой и перетакиванием (drag-and-drop) от устройств ввода
-        let data_device_state = DataDeviceState::new::<Self>(&dh);
+        let data_device_state = DataDeviceState::new::<Self>(dh);
 
         // Создаём новый Seat из состояния Seat и передаём ему имя.
-        let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "nethalym_wm");
+        let mut seat: Seat<Self> = seat_state.new_wl_seat(dh, "nethalym_wm");
 
         // Добавляем клавиатуру с частоток повтора и задержкой в миллисекундах.
         // Повтор - время повтора, задержка - как должно нужно ждать перез следующим повтором

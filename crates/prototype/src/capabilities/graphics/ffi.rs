@@ -1,10 +1,9 @@
 use std::{
-    ffi::{CStr, c_char, c_int},
+    ffi::{c_char, c_int},
     hint::unreachable_unchecked,
 };
 
 use graphics::reexports::{DesktopOptions, SpecialOptions, TargetMonitor, WindowLayer};
-use smithay::reexports::rustix::path::Arg;
 use wasmtime::Caller;
 
 use crate::{capabilities::read_wasm_string, module::context::ExecutionContext};

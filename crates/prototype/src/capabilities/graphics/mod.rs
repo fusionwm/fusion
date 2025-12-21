@@ -14,7 +14,7 @@ use crate::{
         graphics::ffi::{CWindowLayer, convert_window_layer_fast},
         read_wasm_memory_slice, read_wasm_string,
     },
-    module::{config::Str, context::ExecutionContext},
+    module::context::ExecutionContext,
 };
 
 #[derive(Default)]

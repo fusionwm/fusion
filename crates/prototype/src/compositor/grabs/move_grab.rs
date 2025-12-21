@@ -69,7 +69,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         details: AxisFrame,
     ) {
-        handle.axis(data, details)
+        handle.axis(data, details);
     }
 
     fn frame(&mut self, data: &mut App<B>, handle: &mut PointerInnerHandle<'_, App<B>>) {
@@ -82,7 +82,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GestureSwipeBeginEvent,
     ) {
-        handle.gesture_swipe_begin(data, event)
+        handle.gesture_swipe_begin(data, event);
     }
 
     fn gesture_swipe_update(
@@ -91,7 +91,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GestureSwipeUpdateEvent,
     ) {
-        handle.gesture_swipe_update(data, event)
+        handle.gesture_swipe_update(data, event);
     }
 
     fn gesture_swipe_end(
@@ -100,7 +100,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GestureSwipeEndEvent,
     ) {
-        handle.gesture_swipe_end(data, event)
+        handle.gesture_swipe_end(data, event);
     }
 
     fn gesture_pinch_begin(
@@ -109,7 +109,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GesturePinchBeginEvent,
     ) {
-        handle.gesture_pinch_begin(data, event)
+        handle.gesture_pinch_begin(data, event);
     }
 
     fn gesture_pinch_update(
@@ -118,7 +118,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GesturePinchUpdateEvent,
     ) {
-        handle.gesture_pinch_update(data, event)
+        handle.gesture_pinch_update(data, event);
     }
 
     fn gesture_pinch_end(
@@ -127,7 +127,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GesturePinchEndEvent,
     ) {
-        handle.gesture_pinch_end(data, event)
+        handle.gesture_pinch_end(data, event);
     }
 
     fn gesture_hold_begin(
@@ -136,7 +136,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GestureHoldBeginEvent,
     ) {
-        handle.gesture_hold_begin(data, event)
+        handle.gesture_hold_begin(data, event);
     }
 
     fn gesture_hold_end(
@@ -145,7 +145,7 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
         handle: &mut PointerInnerHandle<'_, App<B>>,
         event: &GestureHoldEndEvent,
     ) {
-        handle.gesture_hold_end(data, event)
+        handle.gesture_hold_end(data, event);
     }
 
     fn start_data(&self) -> &PointerGrabStartData<App<B>> {
