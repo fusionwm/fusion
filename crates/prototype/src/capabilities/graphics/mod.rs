@@ -1,7 +1,7 @@
 mod ffi;
 
 use graphics::{
-    WindowContent, WindowRoot,
+    Widget, WindowHandle,
     commands::{DrawCommand, DrawRectCommand},
     reexports::Anchor,
     types::{Argb8888, Bounds, Stroke},
@@ -22,7 +22,7 @@ pub struct ModuleWindow {
     bounds: Bounds,
 }
 
-impl WindowContent for ModuleWindow {
+impl Widget for ModuleWindow {
     fn desired_size(&self) -> graphics::widget::DesiredSize {
         graphics::widget::DesiredSize::Fill
     }
@@ -51,18 +51,18 @@ pub struct DynamicWindowRoot {
     content: ModuleWindow,
 }
 
-impl WindowRoot for DynamicWindowRoot {
+impl WindowHandle for DynamicWindowRoot {
     fn request(&self) -> graphics::window::WindowRequest {
         self.request.clone()
     }
 
     fn setup(&mut self, app: &mut graphics::graphics::Graphics) {}
 
-    fn root_mut(&mut self) -> &mut dyn graphics::WindowContent {
+    fn root_mut(&mut self) -> &mut dyn graphics::Widget {
         &mut self.content
     }
 
-    fn root(&self) -> &dyn graphics::WindowContent {
+    fn root(&self) -> &dyn graphics::Widget {
         &self.content
     }
 }

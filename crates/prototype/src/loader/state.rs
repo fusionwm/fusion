@@ -40,7 +40,7 @@ use wayland_server::{
     protocol::{wl_output::WlOutput, wl_seat::WlSeat, wl_surface::WlSurface},
 };
 
-use crate::compositor::backend::Backend;
+use crate::{compositor::backend::Backend, loader::ClientSignal};
 
 pub struct LoaderState<B: Backend + 'static> {
     pub compositor_state: CompositorState,
@@ -53,12 +53,18 @@ pub struct LoaderState<B: Backend + 'static> {
     pub wlr_layer_shell_state: WlrLayerShellState,
 
     pub loop_signal: LoopSignal,
+    pub client_signal: ClientSignal,
 
     pub backend: B,
 }
 
 impl<B: Backend + 'static> LoaderState<B> {
-    pub fn init(dh: &DisplayHandle, backend: B, loop_signal: LoopSignal) -> Self {
+    pub fn init(
+        dh: &DisplayHandle,
+        backend: B,
+        loop_signal: LoopSignal,
+        client_signal: ClientSignal,
+    ) -> Self {
         let compositor_state = CompositorState::new::<Self>(dh);
         let data_device_state = DataDeviceState::new::<Self>(dh);
         let shm_state = ShmState::new::<Self>(dh, vec![]);
@@ -83,6 +89,7 @@ impl<B: Backend + 'static> LoaderState<B> {
             xdg_shell_state,
             wlr_layer_shell_state,
             loop_signal,
+            client_signal,
             backend,
         }
     }
@@ -99,6 +106,7 @@ impl<B: Backend + 'static> CompositorHandler for LoaderState<B> {
     }
 
     fn commit(&mut self, surface: &WlSurface) {
+        println!("[{:?}] Commit start", std::time::Instant::now());
         on_commit_buffer_handler::<Self>(surface);
         if !is_sync_subsurface(surface) {
             let mut root = surface.clone();
@@ -227,6 +235,7 @@ pub fn handle_layer_shell_commit(space: &Space<Window>, surface: &WlSurface) {
         });
 
         if !initial_configure_send {
+            println!("[{:?}] Send configure", std::time::Instant::now());
             layer.layer_surface().send_configure();
         }
     }
@@ -295,6 +304,11 @@ impl<B: Backend + 'static> WlrLayerShellHandler for LoaderState<B> {
         let mut map = layer_map_for_output(&output);
         map.map_layer(&LayerSurface::new(surface, namespace))
             .unwrap();
+
+        println!(
+            "[{:?}] New layer surface created",
+            std::time::Instant::now()
+        );
     }
 
     fn layer_destroyed(&mut self, surface: WlrLayerSurface) {

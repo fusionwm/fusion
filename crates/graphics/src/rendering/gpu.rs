@@ -1,6 +1,7 @@
 use wgpu::{
-    Adapter, Device, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode, Queue,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureUsages,
+    Adapter, CompositeAlphaMode, Device, DeviceDescriptor, Instance, InstanceDescriptor,
+    PresentMode, Queue, RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat,
+    TextureUsages,
 };
 
 use crate::Error;
@@ -11,6 +12,10 @@ pub struct Gpu {
     pub adapter: Adapter,
     pub device: Device,
     pub queue: Queue,
+
+    //Cache
+    pub surface_format: TextureFormat,
+    pub alpha_mode: CompositeAlphaMode,
 }
 
 impl Gpu {
@@ -18,18 +23,31 @@ impl Gpu {
         let instance = Instance::new(&InstanceDescriptor::default());
         let surface = instance.create_surface(dummy)?;
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::LowPower,
+            power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
         }))?;
         let (device, queue) =
             pollster::block_on(adapter.request_device(&DeviceDescriptor::default()))?;
 
+        let caps = surface.get_capabilities(&adapter);
+
+        // Cache values
+        let surface_format = *caps
+            .formats
+            .iter()
+            .find(|&&f| matches!(f, wgpu::TextureFormat::Rgba8Unorm))
+            .unwrap_or(&caps.formats[0]);
+
+        let alpha_mode = caps.alpha_modes[0];
+
         Ok(Self {
             instance,
             adapter,
             device,
             queue,
+            surface_format,
+            alpha_mode,
         })
     }
 
@@ -40,26 +58,22 @@ impl Gpu {
         height: u32,
     ) -> Result<(Surface<'window>, SurfaceConfiguration), Error> {
         let surface = self.instance.create_surface(ptr)?;
-
-        let caps = surface.get_capabilities(&self.adapter);
-        let format = *caps
-            .formats
-            .iter()
-            .find(|&&f| matches!(f, wgpu::TextureFormat::Rgba8Unorm))
-            .unwrap_or(&caps.formats[0]);
+        println!("[{:?}] Create surface", std::time::Instant::now());
 
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
-            format,
+            format: self.surface_format,
             width,
             height,
             present_mode: PresentMode::Fifo,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: caps.alpha_modes[0],
+            desired_maximum_frame_latency: 1,
+            alpha_mode: self.alpha_mode,
             view_formats: vec![],
         };
+        println!("[{:?}] Create configuration", std::time::Instant::now());
 
         self.confugure_surface(&surface, &config);
+        println!("[{:?}] Configure surface", std::time::Instant::now());
 
         Ok((surface, config))
     }

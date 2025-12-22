@@ -17,6 +17,7 @@ use log::LevelFilter;
 use smithay::reexports::calloop::EventLoop;
 use std::io::Write;
 use thiserror::Error;
+use tracy_client::Client;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -54,6 +55,7 @@ fn setup_logging() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    Client::start();
     setup_logging();
 
     let mut event_loop: EventLoop<LoaderLoopData<WinitBackend>> = EventLoop::try_new()?;

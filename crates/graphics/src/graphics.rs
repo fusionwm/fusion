@@ -1,12 +1,12 @@
 use crate::{
-    ContentManager, Error, WindowRoot, commands::CommandBuffer, rendering::Gpu, types::Bounds,
+    ContentManager, Error, WindowHandle, commands::CommandBuffer, rendering::Gpu, types::Bounds,
     widget::FrameContext,
 };
 use glam::Vec2;
 
 pub struct Graphics {
-    pub(crate) frontends: Vec<Box<dyn WindowRoot>>,
-    pub(crate) requested_frontends: Vec<Box<dyn WindowRoot>>,
+    pub(crate) frontends: Vec<Box<dyn WindowHandle>>,
+    pub(crate) requested_frontends: Vec<Box<dyn WindowHandle>>,
 
     content: ContentManager,
 }
@@ -35,13 +35,13 @@ impl Graphics {
         &mut self.content
     }
 
-    pub fn add_window(&mut self, mut window: Box<dyn WindowRoot>) {
+    pub fn add_window(&mut self, mut window: Box<dyn WindowHandle>) {
         window.setup(self);
         self.requested_frontends.push(window);
     }
 
     // TODO: Возможно, стоит сделать метод более безопасным
-    pub fn destroy_window(&mut self, window: *const dyn WindowRoot) {
+    pub fn destroy_window(&mut self, window: *const dyn WindowHandle) {
         let index = self
             .requested_frontends
             .iter()

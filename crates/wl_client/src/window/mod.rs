@@ -145,12 +145,10 @@ impl Window {
         };
 
         instance.init(ls, xdg_wm_base);
-        instance.draw();
-        instance.frame();
         instance
     }
 
-    fn init(&mut self, ls: Option<&ZwlrLayerShellV1>, xdg_wm_base: Option<&XdgWmBase>) {
+    pub fn init(&mut self, ls: Option<&ZwlrLayerShellV1>, xdg_wm_base: Option<&XdgWmBase>) {
         match self.layer.clone() {
             WindowLayer::Desktop(_) => self.init_desktop(xdg_wm_base.unwrap()),
             WindowLayer::Top(options) => self.init_layer_shell(ls.unwrap(), Layer::Top, &options),
@@ -209,10 +207,10 @@ impl Window {
         self.can_draw = false;
     }
 
-    pub fn draw(&mut self) {
-        self.surface.attach(Some(&self.buffer), 0, 0);
-        self.commit();
-    }
+    //pub fn draw(&mut self) {
+    //    self.surface.attach(Some(&self.buffer), 0, 0);
+    //    self.commit();
+    //}
 
     pub fn resize_pool_if_needed(&mut self) {
         let size = (self.width as u64 * 4) * self.height as u64;

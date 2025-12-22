@@ -19,4 +19,3 @@ image.workspace = true
 resvg.workspace = true
 thiserror.workspace = true
 bitflags.workspace = true
-calloop.workspace = true

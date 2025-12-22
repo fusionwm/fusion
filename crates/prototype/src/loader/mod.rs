@@ -2,8 +2,8 @@ mod state;
 
 use std::{
     os::unix::net::UnixStream,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{Arc, Mutex, mpsc::Sender},
+    time::Duration,
 };
 
 use calloop::{
@@ -34,54 +34,28 @@ use crate::{
 
 mod xd {
     use graphics::{
-        FontHandle, TextureHandle, WindowContent, WindowRoot,
-        commands::{DrawCommand, DrawTextureCommand},
-        fontdue::layout::{CoordinateSystem, Layout, TextStyle},
+        Widget, WindowHandle,
+        commands::{DrawCommand, DrawRectCommand},
         glam::Vec2,
         graphics::Graphics,
         reexports::{Anchor, SpecialOptions, TargetMonitor},
-        types::{Bounds, Stroke, Texture},
+        types::{Argb8888, Bounds, Stroke},
         window::WindowRequest,
     };
 
     pub struct ModuleWindow {
         bounds: Bounds,
-        text: String,
-        count: u32,
-        layout: Layout,
-        font: FontHandle,
-        handle: Option<TextureHandle>,
     }
 
     impl Default for ModuleWindow {
         fn default() -> Self {
             Self {
                 bounds: Bounds::new(Vec2::ZERO, Vec2::new(100.0, 100.0)),
-                count: 0,
-                layout: Layout::new(CoordinateSystem::PositiveYDown),
-                text: String::new(),
-                font: FontHandle::default(),
-                handle: None,
             }
         }
     }
 
-    impl ModuleWindow {
-        fn refresh_layout(&mut self) {
-            self.layout.clear();
-            self.layout.append(
-                &[self.font.as_ref()],
-                &TextStyle {
-                    text: &self.text,
-                    px: 16.0,
-                    font_index: 0,
-                    user_data: (),
-                },
-            );
-        }
-    }
-
-    impl WindowContent for ModuleWindow {
+    impl Widget for ModuleWindow {
         fn desired_size(&self) -> graphics::widget::DesiredSize {
             graphics::widget::DesiredSize::Fill
         }
@@ -91,9 +65,9 @@ mod xd {
         }
 
         fn draw<'frame>(&'frame self, out: &mut graphics::commands::CommandBuffer<'frame>) {
-            out.push(DrawCommand::Texture(DrawTextureCommand::new(
+            out.push(DrawCommand::Rect(DrawRectCommand::new(
                 self.bounds.clone(),
-                Texture::new(graphics::Handle::Texture(self.handle.clone().unwrap())),
+                Argb8888::BLACK,
                 Stroke::NONE,
             )));
         }
@@ -105,58 +79,69 @@ mod xd {
         fn update(&mut self, _ctx: &graphics::widget::FrameContext) {}
     }
 
-    pub struct DynamicWindowRoot {
+    pub struct DynamicWindow {
         request: WindowRequest,
-        content: ModuleWindow,
-        handle: Option<TextureHandle>,
+        root: ModuleWindow,
     }
 
-    impl WindowRoot for DynamicWindowRoot {
+    impl WindowHandle for DynamicWindow {
         fn request(&self) -> graphics::window::WindowRequest {
             self.request.clone()
         }
 
-        fn setup(&mut self, app: &mut graphics::graphics::Graphics) {
-            let handle = Some(
-                app.content_manager()
-                    .static_load_texture("gachimuchi.jpeg")
-                    .unwrap(),
-            );
+        fn setup(&mut self, _app: &mut graphics::graphics::Graphics) {}
 
-            self.handle = handle.clone();
-            self.content.handle = handle.clone();
+        fn root_mut(&mut self) -> &mut dyn graphics::Widget {
+            &mut self.root
         }
 
-        fn root_mut(&mut self) -> &mut dyn graphics::WindowContent {
-            &mut self.content
-        }
-
-        fn root(&self) -> &dyn graphics::WindowContent {
-            &self.content
+        fn root(&self) -> &dyn graphics::Widget {
+            &self.root
         }
     }
 
     pub fn test(graphics: &mut Graphics) {
-        let window = Box::new(DynamicWindowRoot {
-            //request: WindowRequest::new("Test Window")
-            //    .with_size(800, 600)
-            //    .desktop(DesktopOptions {
-            //        title: "Test Window".into(),
-            //        resizable: true,
-            //        decorations: true,
-            //    }),
+        let window = Box::new(DynamicWindow {
             request: WindowRequest::new("Test Window")
-                .with_size(800, 600)
+                //.with_size(800, 600)
                 .background(SpecialOptions {
                     anchor: Anchor::Bottom,
                     exclusive_zone: 600,
                     target: TargetMonitor::Primary,
                 }),
-            content: ModuleWindow::default(),
-            handle: None,
+            root: ModuleWindow::default(),
         });
         graphics.add_window(window);
     }
+}
+
+pub struct ClientSignal {
+    inner: Sender<()>,
+}
+
+impl ClientSignal {
+    pub fn stop(&self) {
+        self.inner.send(()).unwrap();
+    }
+}
+
+fn spawn_client_thread(
+    graphics: Arc<Mutex<Graphics>>,
+    client_stream: UnixStream,
+) -> Result<ClientSignal, Box<dyn std::error::Error>> {
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    std::thread::Builder::new()
+        .name("Client".into())
+        .spawn(move || {
+            let mut client = InternalClient::new(graphics, client_stream).unwrap();
+            while receiver.try_recv().is_err() {
+                if let Err(err) = client.tick(0.0) {
+                    log::error!("[Client] {err}");
+                }
+            }
+        })?;
+
+    Ok(ClientSignal { inner: sender })
 }
 
 pub struct LoaderLoopData<B: Backend + 'static> {
@@ -171,24 +156,15 @@ pub fn init_loader(
     let display: Display<LoaderState<WinitBackend>> = Display::new()?;
     let dh = display.handle();
 
-    let state = LoaderState::init(&dh, backend, event_loop.get_signal());
-
     let (client_stream, server_stream) = UnixStream::pair().unwrap();
     let graphics = Arc::new(Mutex::new(Graphics::new()));
     {
         let mut guard = graphics.lock().unwrap();
         xd::test(&mut guard);
     }
-    std::thread::Builder::new()
-        .name("Client".into())
-        .spawn(|| {
-            let mut client = InternalClient::new(graphics, client_stream).unwrap();
-            loop {
-                if let Err(err) = client.tick(0.0) {
-                    eprintln!("Client error: {err}");
-                }
-            }
-        })?;
+
+    let client_signal = spawn_client_thread(graphics.clone(), client_stream)?;
+    let state = LoaderState::init(&dh, backend, event_loop.get_signal(), client_signal);
 
     display
         .handle()
@@ -262,6 +238,7 @@ pub fn init_loader(
                         }
                         WinitEvent::Focus(_) | WinitEvent::Input(_) | WinitEvent::Redraw => {}
                         WinitEvent::CloseRequested => {
+                            state.client_signal.stop();
                             state.loop_signal.stop();
                         }
                     });
@@ -298,6 +275,7 @@ pub fn init_loader(
 
             state.space.refresh();
 
+            //println!("[{:?}] Flush clients", std::time::Instant::now());
             display.flush_clients().unwrap();
             TimeoutAction::ToDuration(Duration::from_millis(16))
         })

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tracy-client.workspace = true
 graphics.workspace = true
 wasmtime.workspace = true
 toml.workspace = true
@@ -36,6 +37,7 @@ wayland-server.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 calloop.workspace = true
+
 
 [build-dependencies]
 cc = "1.2.50"

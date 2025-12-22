@@ -259,6 +259,7 @@ impl<'frame> CommandBuffer<'frame> {
             active: vec![],
         }
     }
+
     pub fn push(&mut self, command: impl Into<DrawCommand<'frame>>) {
         let command = command.into();
         let last = self.active.last();
@@ -270,12 +271,12 @@ impl<'frame> CommandBuffer<'frame> {
         self.active.push(command);
     }
 
-    pub fn pack_active_group(&mut self) {
+    pub(crate) fn pack_active_group(&mut self) {
         let group = std::mem::take(&mut self.active);
         self.packed.push(PackedGroup { inner: group });
     }
 
-    pub fn iter_mut(&mut self) -> CommandBufferIter<'_, 'frame> {
+    pub(crate) fn iter_mut(&mut self) -> CommandBufferIter<'_, 'frame> {
         CommandBufferIter {
             content: self.content,
             iter: self.packed.iter_mut(),

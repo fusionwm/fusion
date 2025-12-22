@@ -60,6 +60,9 @@ pub struct WlClient {
 
     seat: Option<WlSeat>,
     pointer: Pointer,
+
+    output_width: u32,
+    output_height: u32,
 }
 
 impl WlClient {
@@ -88,8 +91,15 @@ impl WlClient {
         height: u32,
         layer: WindowLayer,
     ) -> Arc<Mutex<Window>> {
-        let width = width as i32;
-        let height = height as i32;
+        let mut width = width as i32;
+        let mut height = height as i32;
+
+        if width <= 0 {
+            width = self.output_width as i32;
+        }
+        if height <= 0 {
+            height = self.output_height as i32;
+        }
 
         let id = id.into();
         let arc_id = Arc::new(id.clone());
@@ -205,7 +215,10 @@ impl Dispatch<WlOutput, WindowId> for WlClient {
                 width,
                 height,
                 refresh,
-            } => {}
+            } => {
+                state.output_width = width as u32;
+                state.output_height = height as u32;
+            }
             WlOutputEvent::Scale { factor } => {}
             WlOutputEvent::Name { name } => {
                 let id = output.id().to_string();
@@ -400,6 +413,10 @@ impl Dispatch<ZwlrLayerSurfaceV1, WindowId> for WlClient {
                 width: _,  //TODO
                 height: _, //TODO
             } => {
+                println!(
+                    "[{:?}] WlrLayerSurface::Configure",
+                    std::time::Instant::now()
+                );
                 surface.ack_configure(serial);
                 let mut window = state.windows.get_mut(id.as_str()).unwrap().lock().unwrap();
                 window.resize_buffer_if_needed();
