@@ -13,7 +13,6 @@ mod content;
 mod error;
 mod rendering;
 pub mod types;
-pub mod widgets;
 
 pub use content::*;
 pub use fontdue;
@@ -30,9 +29,8 @@ pub mod reexports {
 
 use crate::{
     graphics::Graphics,
-    rendering::{Gpu, Renderer, commands::CommandBuffer},
-    types::Bounds,
-    widget::{DesiredSize, FrameContext},
+    rendering::{Gpu, Renderer},
+    widget::{FrameContext, Widget},
     window::{Window, WindowPointer, WindowRequest},
 };
 pub use error::*;
@@ -45,7 +43,7 @@ use std::{
 };
 use wayland_client::{Connection, DispatchError, EventQueue, Proxy, backend::WaylandError};
 use wl_client::WlClient;
-use wl_client::{Anchor, window::WindowLayer};
+use wl_client::window::WindowLayer;
 
 pub struct InternalClient {
     app: Arc<Mutex<Graphics>>,
@@ -237,22 +235,13 @@ impl InternalClient {
 }
 
 pub trait WindowHandle: Send + Sync {
+    //TODO remove this method
     fn request(&self) -> WindowRequest;
     fn setup(&mut self, app: &mut Graphics);
     fn root_mut(&mut self) -> &mut dyn Widget;
     fn root(&self) -> &dyn Widget;
 }
 
-pub trait Widget {
-    fn desired_size(&self) -> DesiredSize;
-    fn anchor(&self) -> Anchor;
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>);
-    fn layout(&mut self, bounds: Bounds);
-    fn update(&mut self, ctx: &FrameContext);
-}
-
-pub trait Container: Widget {
-    fn add_child(&mut self, child: Box<dyn Widget>);
-    fn children(&self) -> &[Box<dyn Widget>];
-    fn children_mut(&mut self) -> &mut [Box<dyn Widget>];
-}
+//pub trait Context: Send + Sync + Default + Sized + 'static {
+//    //fn execute(&self, content: &mut ContentManager, tree: &mut Tree<Self>);
+//}

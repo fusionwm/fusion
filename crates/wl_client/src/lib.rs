@@ -2,8 +2,10 @@
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_wrap)]
 #![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_lossless)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_errors_doc)]
+#![allow(clippy::too_many_arguments)]
 
 pub mod window;
 use glam::Vec2;
@@ -255,9 +257,6 @@ impl Dispatch<WlSurface, WindowId> for WlClient {
         match event {
             //WlSurfaceEvent::Enter { output: _ } => println!("Enter"),
             //WlSurfaceEvent::Leave { output: _ } => println!("Leave"),
-            WlSurfaceEvent::Enter { output: _ } => {}
-            WlSurfaceEvent::Leave { output: _ } => {}
-
             WlSurfaceEvent::PreferredBufferScale { factor } => {
                 let mut window = state.windows.get_mut(id.as_str()).unwrap().lock().unwrap();
                 window.scale = factor;

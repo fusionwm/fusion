@@ -1,12 +1,6 @@
 mod ffi;
 
-use graphics::{
-    Widget, WindowHandle,
-    commands::{DrawCommand, DrawRectCommand},
-    reexports::Anchor,
-    types::{Argb8888, Bounds, Stroke},
-    window::WindowRequest,
-};
+use graphics::{WindowHandle, widget::Widget, window::WindowRequest};
 use wasmtime::{Caller, Func, Store};
 
 use crate::{
@@ -17,38 +11,9 @@ use crate::{
     module::context::ExecutionContext,
 };
 
-#[derive(Default)]
-pub struct ModuleWindow {
-    bounds: Bounds,
-}
-
-impl Widget for ModuleWindow {
-    fn desired_size(&self) -> graphics::widget::DesiredSize {
-        graphics::widget::DesiredSize::Fill
-    }
-
-    fn anchor(&self) -> graphics::reexports::Anchor {
-        Anchor::Left
-    }
-
-    fn draw<'frame>(&'frame self, out: &mut graphics::commands::CommandBuffer<'frame>) {
-        out.push(DrawCommand::Rect(DrawRectCommand::new(
-            Bounds::new(self.bounds.position, self.bounds.size),
-            Argb8888::GRAY,
-            Stroke::NONE,
-        )));
-    }
-
-    fn layout(&mut self, bounds: graphics::types::Bounds) {
-        self.bounds = bounds;
-    }
-
-    fn update(&mut self, ctx: &graphics::widget::FrameContext) {}
-}
-
 pub struct DynamicWindowRoot {
     request: WindowRequest,
-    content: ModuleWindow,
+    content: Option<Box<dyn Widget>>,
 }
 
 impl WindowHandle for DynamicWindowRoot {
@@ -58,11 +23,11 @@ impl WindowHandle for DynamicWindowRoot {
 
     fn setup(&mut self, app: &mut graphics::graphics::Graphics) {}
 
-    fn root_mut(&mut self) -> &mut dyn graphics::Widget {
+    fn root_mut(&mut self) -> &mut dyn Widget {
         &mut self.content
     }
 
-    fn root(&self) -> &dyn graphics::Widget {
+    fn root(&self) -> &dyn Widget {
         &self.content
     }
 }
@@ -89,7 +54,7 @@ pub fn create_window(store: &mut Store<ExecutionContext>) -> Func {
                 request: WindowRequest::new(id)
                     .with_layer(layer)
                     .with_size(width as u32, height as u32),
-                content: ModuleWindow::default(),
+                content: None,
             });
 
             let window_ptr = window.as_ref() as *const _;

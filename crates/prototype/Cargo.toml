@@ -2,6 +2,7 @@
 name = "prototype"
 version = "0.1.0"
 edition = "2024"
+lints.workspace = true
 
 [dependencies]
 tracy-client.workspace = true
@@ -38,6 +39,7 @@ wgpu.workspace = true
 winit.workspace = true
 calloop.workspace = true
 
+graphics-widgets.workspace = true
 
 [build-dependencies]
 cc = "1.2.50"

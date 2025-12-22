@@ -1,4 +1,5 @@
 mod state;
+mod window;
 
 use std::{
     os::unix::net::UnixStream,
@@ -31,89 +32,6 @@ use crate::{
     compositor::{backend::Backend, window::WinitBackend},
     loader::state::LoaderState,
 };
-
-mod xd {
-    use graphics::{
-        Widget, WindowHandle,
-        commands::{DrawCommand, DrawRectCommand},
-        glam::Vec2,
-        graphics::Graphics,
-        reexports::{Anchor, SpecialOptions, TargetMonitor},
-        types::{Argb8888, Bounds, Stroke},
-        window::WindowRequest,
-    };
-
-    pub struct ModuleWindow {
-        bounds: Bounds,
-    }
-
-    impl Default for ModuleWindow {
-        fn default() -> Self {
-            Self {
-                bounds: Bounds::new(Vec2::ZERO, Vec2::new(100.0, 100.0)),
-            }
-        }
-    }
-
-    impl Widget for ModuleWindow {
-        fn desired_size(&self) -> graphics::widget::DesiredSize {
-            graphics::widget::DesiredSize::Fill
-        }
-
-        fn anchor(&self) -> graphics::reexports::Anchor {
-            graphics::reexports::Anchor::Left
-        }
-
-        fn draw<'frame>(&'frame self, out: &mut graphics::commands::CommandBuffer<'frame>) {
-            out.push(DrawCommand::Rect(DrawRectCommand::new(
-                self.bounds.clone(),
-                Argb8888::BLACK,
-                Stroke::NONE,
-            )));
-        }
-
-        fn layout(&mut self, bounds: graphics::types::Bounds) {
-            self.bounds = bounds;
-        }
-
-        fn update(&mut self, _ctx: &graphics::widget::FrameContext) {}
-    }
-
-    pub struct DynamicWindow {
-        request: WindowRequest,
-        root: ModuleWindow,
-    }
-
-    impl WindowHandle for DynamicWindow {
-        fn request(&self) -> graphics::window::WindowRequest {
-            self.request.clone()
-        }
-
-        fn setup(&mut self, _app: &mut graphics::graphics::Graphics) {}
-
-        fn root_mut(&mut self) -> &mut dyn graphics::Widget {
-            &mut self.root
-        }
-
-        fn root(&self) -> &dyn graphics::Widget {
-            &self.root
-        }
-    }
-
-    pub fn test(graphics: &mut Graphics) {
-        let window = Box::new(DynamicWindow {
-            request: WindowRequest::new("Test Window")
-                //.with_size(800, 600)
-                .background(SpecialOptions {
-                    anchor: Anchor::Bottom,
-                    exclusive_zone: 600,
-                    target: TargetMonitor::Primary,
-                }),
-            root: ModuleWindow::default(),
-        });
-        graphics.add_window(window);
-    }
-}
 
 pub struct ClientSignal {
     inner: Sender<()>,
@@ -160,7 +78,7 @@ pub fn init_loader(
     let graphics = Arc::new(Mutex::new(Graphics::new()));
     {
         let mut guard = graphics.lock().unwrap();
-        xd::test(&mut guard);
+        window::test(&mut guard);
     }
 
     let client_signal = spawn_client_thread(graphics.clone(), client_stream)?;
