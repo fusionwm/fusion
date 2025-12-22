@@ -96,6 +96,9 @@ enum SocketCommand {
 }
 
 //TODO
+//Custom shaders
+//Slider widget
+//Round corners
 //Realtime compositor loading
 //Compositor
 //Compositor capabilities
