@@ -107,9 +107,7 @@ impl InternalClient {
     }
 
     pub fn tick(&mut self, delta: f64) -> Result<(), Error> {
-        println!("[{:?}] Tick start", std::time::Instant::now());
         self.init_windows_backends()?;
-        println!("[{:?}] Tick end", std::time::Instant::now());
         //TODO Frame data
         let frame = FrameContext {
             delta_time: delta,
@@ -161,11 +159,9 @@ impl InternalClient {
                 window.configuration.width as f32,
                 window.configuration.height as f32,
             )?;
-            println!("[{:?}] Call commit, redraw", std::time::Instant::now());
             backend.commit();
         }
 
-        println!("[{:?}] Invoke blocking_dispatch", std::time::Instant::now());
         if let Err(err) = self.event_queue.blocking_dispatch(&mut self.client)
             && !matches!(&err, DispatchError::Backend(WaylandError::Io(_)))
         {
@@ -196,10 +192,6 @@ impl InternalClient {
 
             let (width, height, surface_ptr) = {
                 let mut guard = backend.lock().unwrap();
-                println!(
-                    "[{:?}] Create surface + make commit",
-                    std::time::Instant::now()
-                );
                 guard.commit();
 
                 let width: u32 = guard.width.try_into().expect("width must be >= 0");
@@ -208,13 +200,9 @@ impl InternalClient {
             };
 
             let window_ptr = WindowPointer::new(self.display_ptr, surface_ptr);
-            println!("[{:?}] Prepare gpu surface", std::time::Instant::now());
             let (surface, configuration) = self.gpu.create_surface(window_ptr, width, height)?;
-            println!("[{:?}] Gpu surface prepared", std::time::Instant::now());
 
-            println!("[{:?}] Prepare renderer", std::time::Instant::now());
             let renderer = Renderer::new(&self.gpu, None, &surface)?;
-            println!("[{:?}] Renderer prepared", std::time::Instant::now());
 
             let window = Window::new(backend, surface, configuration, renderer);
 
@@ -224,7 +212,6 @@ impl InternalClient {
             Ok::<(), Error>(())
         })?;
 
-        println!("[{:?}] Invoke blocking_dispatch", std::time::Instant::now());
         if let Err(err) = self.event_queue.blocking_dispatch(&mut self.client)
             && !matches!(&err, DispatchError::Backend(WaylandError::Io(_)))
         {

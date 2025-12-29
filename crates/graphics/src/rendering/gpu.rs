@@ -58,7 +58,6 @@ impl Gpu {
         height: u32,
     ) -> Result<(Surface<'window>, SurfaceConfiguration), Error> {
         let surface = self.instance.create_surface(ptr)?;
-        println!("[{:?}] Create surface", std::time::Instant::now());
 
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
@@ -70,10 +69,8 @@ impl Gpu {
             alpha_mode: self.alpha_mode,
             view_formats: vec![],
         };
-        println!("[{:?}] Create configuration", std::time::Instant::now());
 
         self.confugure_surface(&surface, &config);
-        println!("[{:?}] Configure surface", std::time::Instant::now());
 
         Ok((surface, config))
     }
