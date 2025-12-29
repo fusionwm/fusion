@@ -55,10 +55,10 @@ impl Bounds {
     }
 
     #[must_use]
-    pub const fn from_size(size: Vec2) -> Self {
+    pub fn from_size(size: impl Into<Vec2>) -> Self {
         Self {
             position: Vec2::ZERO,
-            size,
+            size: size.into(),
         }
     }
 
@@ -92,5 +92,15 @@ impl Bounds {
             position: Vec2::new(min_x, min_y),
             size: Vec2::new(max_x, max_y),
         }
+    }
+
+    #[must_use]
+    pub const fn max(&self) -> Vec2 {
+        Vec2::new(self.position.x + self.size.x, self.position.y + self.size.y)
+    }
+
+    #[must_use]
+    pub const fn min(&self) -> Vec2 {
+        self.position
     }
 }
