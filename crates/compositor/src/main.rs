@@ -2,40 +2,18 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_possible_wrap)]
 #![allow(clippy::too_many_lines)]
-mod capabilities;
 mod compositor;
 mod loader;
-mod module;
 
 use crate::{
     compositor::window::WinitBackend,
     loader::{LoaderLoopData, init_loader},
-    module::loader::ModuleLoaderError,
 };
 use bincode::{Decode, Encode};
 use log::LevelFilter;
 use smithay::reexports::calloop::EventLoop;
 use std::io::Write;
-use thiserror::Error;
 use tracy_client::Client;
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("{0}")]
-    PathDoesntExist(String),
-
-    #[error("{0}")]
-    IO(#[from] std::io::Error),
-
-    #[error("{0}")]
-    TOML(#[from] toml::de::Error),
-
-    #[error("{0}")]
-    Module(#[from] wasmtime::Error),
-
-    #[error("{0}")]
-    ModuleLoader(#[from] ModuleLoaderError),
-}
 
 fn setup_logging() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))

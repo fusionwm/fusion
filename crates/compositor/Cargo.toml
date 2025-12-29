@@ -5,9 +5,9 @@ edition = "2024"
 lints.workspace = true
 
 [dependencies]
+module-engine.workspace = true
 tracy-client.workspace = true
 graphics.workspace = true
-wasmtime.workspace = true
 toml.workspace = true
 thiserror.workspace = true
 serde.workspace = true
@@ -20,8 +20,6 @@ env_logger.workspace = true
 chrono.workspace = true
 bincode.workspace = true
 bitflags.workspace = true
-tree-sitter.workspace = true
-regex.workspace = true
 bytemuck.workspace = true
 
 #Http

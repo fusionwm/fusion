@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use crate::module::config::section_option::SectionOption;
+use crate::config::section_option::SectionOption;
 
 #[derive(Debug, Clone)]
 pub struct Section {

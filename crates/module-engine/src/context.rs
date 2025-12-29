@@ -16,10 +16,7 @@ use tokio::{
     net::{TcpSocket, TcpStream, UdpSocket},
 };
 
-use crate::{
-    error, info,
-    module::{config::Config, logging::Logger},
-};
+use crate::{config::Config, error, info, logging::Logger};
 
 pub struct ExecutionContext {
     logger: Logger,

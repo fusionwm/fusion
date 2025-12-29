@@ -46,14 +46,13 @@ use wayland_server::{
     protocol::{wl_seat::WlSeat, wl_surface::WlSurface},
 };
 
-use crate::{
-    compositor::{
-        ClientState,
-        backend::Backend,
-        grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
-    },
-    module::{engine::ModuleEngine, loader::ModuleLoader},
+use crate::compositor::{
+    ClientState,
+    backend::Backend,
+    grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
 };
+
+use module_engine::{engine::ModuleEngine, loader::ModuleLoader};
 
 pub struct App<B: Backend + 'static> {
     pub compositor_state: CompositorState,

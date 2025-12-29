@@ -3,7 +3,7 @@ use std::ffi::c_char;
 use bytemuck::NoUninit;
 use wasmtime::{AsContextMut, Func, Memory, Val};
 
-use crate::module::config::Value;
+use crate::config::Value;
 
 #[repr(C)]
 #[derive(Copy, Clone)]

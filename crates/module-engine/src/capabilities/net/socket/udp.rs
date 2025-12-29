@@ -2,8 +2,8 @@ use wasmtime::{Caller, Func, Store};
 
 use crate::{
     capabilities::{read_wasm_memory_slice, read_wasm_string, write_wasm_bytes},
+    context::ExecutionContext,
     error,
-    module::context::ExecutionContext,
 };
 
 pub fn net_socket_udp_create(store: &mut Store<ExecutionContext>) -> Func {

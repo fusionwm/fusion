@@ -4,15 +4,12 @@ use std::{
 };
 
 use crate::{
-    ModuleListFilter,
     capabilities::get_imports,
-    module::{
-        context::ExecutionContext,
-        loader::{ModuleLoader, PackedModule},
-        manifest::Manifest,
-        stdlib::StandardLibrary,
-        table::CapabilityTable,
-    },
+    context::ExecutionContext,
+    loader::{ModuleLoader, PackedModule},
+    manifest::Manifest,
+    stdlib::StandardLibrary,
+    table::CapabilityTable,
 };
 use graphics::graphics::Graphics;
 use log::{error, info};
@@ -52,7 +49,7 @@ pub struct ModuleEngine {
 impl ModuleEngine {
     const SOCKET_PATH: &str = "nethalym-engine.sock";
 
-    pub fn new(graphics: Arc<StdMutex<Graphics>>) -> Result<Self, crate::Error> {
+    pub fn new(graphics: Arc<StdMutex<Graphics>>) -> Result<Self, Box<dyn std::error::Error>> {
         ensure_directory_exists();
 
         let _ = std::fs::remove_file(Self::SOCKET_PATH);
@@ -82,7 +79,7 @@ impl ModuleEngine {
         })
     }
 
-    fn prepare_module(&mut self, packed: PackedModule) -> Result<(), crate::Error> {
+    fn prepare_module(&mut self, packed: PackedModule) -> Result<(), Box<dyn std::error::Error>> {
         info!("[{}] Preparing module", packed.manifest.name());
 
         let log_file = dirs::config_dir()
@@ -342,18 +339,18 @@ impl ModuleWorkspace {
         &self.manifest
     }
 
-    pub fn init(&mut self) -> Result<(), crate::Error> {
+    pub fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("[{}] Initializing module", self.manifest.name());
         self.stdlib.init(&mut self.store)?;
         Ok(())
     }
 
-    pub fn tick(&mut self) -> Result<(), crate::Error> {
+    pub fn tick(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.stdlib.tick(&mut self.store)?;
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<(), crate::Error> {
+    pub fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.stdlib.stop(&mut self.store)?;
         Ok(())
     }
@@ -362,13 +359,13 @@ impl ModuleWorkspace {
         self.stdlib.is_support_restore()
     }
 
-    pub fn get_restore_state(&mut self) -> Result<Vec<u8>, crate::Error> {
+    pub fn get_restore_state(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         debug_assert!(self.is_support_restore());
         let memory = self.get_memory();
         self.stdlib.get_restore_state(memory, &mut self.store)
     }
 
-    pub fn restore(&mut self, state: Vec<u8>) -> Result<(), crate::Error> {
+    pub fn restore(&mut self, state: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         let memory = self.get_memory();
         self.stdlib.restore(&mut self.store, memory, state)
     }

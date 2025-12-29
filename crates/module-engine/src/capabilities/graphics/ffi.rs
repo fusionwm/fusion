@@ -6,7 +6,7 @@ use std::{
 use graphics::reexports::{DesktopOptions, SpecialOptions, TargetMonitor, WindowLayer};
 use wasmtime::Caller;
 
-use crate::{capabilities::read_wasm_string, module::context::ExecutionContext};
+use crate::{capabilities::read_wasm_string, context::ExecutionContext};
 
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

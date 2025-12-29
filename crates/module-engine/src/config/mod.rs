@@ -10,7 +10,7 @@ pub use value_type::*;
 
 use tree_sitter::{Node, Parser};
 
-use crate::module::config::section::Section;
+use crate::config::section::Section;
 
 pub fn read_meta_name<'a>(node: &'a Node, source: &'a str) -> &'a str {
     node.child_by_field_name("name")

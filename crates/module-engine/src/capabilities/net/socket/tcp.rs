@@ -2,7 +2,7 @@ use wasmtime::{Caller, Func, Store};
 
 use crate::{
     capabilities::{read_wasm_memory_slice, read_wasm_string, write_wasm_bytes},
-    module::context::ExecutionContext,
+    context::ExecutionContext,
 };
 
 pub fn net_socket_tcp_create(store: &mut Store<ExecutionContext>) -> Func {

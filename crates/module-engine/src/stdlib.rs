@@ -1,6 +1,6 @@
 use wasmtime::{AsContextMut, Instance, Memory, Store, TypedFunc};
 
-use crate::module::context::ExecutionContext;
+use crate::context::ExecutionContext;
 
 #[allow(dead_code)]
 pub struct StandardLibrary {
@@ -17,7 +17,10 @@ pub struct StandardLibrary {
 }
 
 impl StandardLibrary {
-    pub fn new(instance: &Instance, mut store: impl AsContextMut) -> Result<Self, crate::Error> {
+    pub fn new(
+        instance: &Instance,
+        mut store: impl AsContextMut,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let init = instance.get_typed_func::<(), ()>(&mut store, "module_init")?;
         let tick = instance.get_typed_func::<(), ()>(&mut store, "module_tick")?;
         let stop = instance.get_typed_func::<(), ()>(&mut store, "module_stop")?;
@@ -54,17 +57,26 @@ impl StandardLibrary {
         })
     }
 
-    pub fn init(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
+    pub fn init(
+        &self,
+        store: &mut Store<ExecutionContext>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.init.call(store, ())?;
         Ok(())
     }
 
-    pub fn tick(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
+    pub fn tick(
+        &self,
+        store: &mut Store<ExecutionContext>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.tick.call(store, ())?;
         Ok(())
     }
 
-    pub fn stop(&self, mut store: &mut Store<ExecutionContext>) -> Result<(), crate::Error> {
+    pub fn stop(
+        &self,
+        store: &mut Store<ExecutionContext>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.stop.call(store, ())?;
         Ok(())
     }
@@ -77,7 +89,7 @@ impl StandardLibrary {
         &self,
         memory: Memory,
         mut store: &mut Store<ExecutionContext>,
-    ) -> Result<Vec<u8>, crate::Error> {
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let func = self.on_failure.as_ref().unwrap();
         //let ptr = func.call_async(&mut store, ())? as usize;
         let ptr = func.call(&mut store, ())? as usize;
@@ -111,7 +123,7 @@ impl StandardLibrary {
         mut store: &mut Store<ExecutionContext>,
         memory: Memory,
         state: Vec<u8>,
-    ) -> Result<(), crate::Error> {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         debug_assert!(state.len() >= 4);
         let ptr_bytes = [state[0], state[1], state[2], state[3]];
         let ptr = u32::from_le_bytes(ptr_bytes) as usize;

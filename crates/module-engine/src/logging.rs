@@ -77,27 +77,27 @@ impl Logger {
 #[macro_export]
 macro_rules! debug {
     ($logger:expr, $($arg:tt)*) => {
-        $logger.log_format($crate::module::logging::Level::Debug, format_args!($($arg)*))
+        $logger.log_format($crate::logging::Level::Debug, format_args!($($arg)*))
     };
 }
 
 #[macro_export]
 macro_rules! info {
     ($logger:expr, $($arg:tt)*) => {
-        $logger.log_format($crate::module::logging::Level::Info, format_args!($($arg)*))
+        $logger.log_format($crate::logging::Level::Info, format_args!($($arg)*))
     };
 }
 
 #[macro_export]
 macro_rules! warn {
     ($logger:expr, $($arg:tt)*) => {
-        $logger.log_format($crate::module::logging::Level::Warn, format_args!($($arg)*))
+        $logger.log_format($crate::logging::Level::Warn, format_args!($($arg)*))
     };
 }
 
 #[macro_export]
 macro_rules! error {
     ($logger:expr, $($arg:tt)*) => {
-        $logger.log_format($crate::module::logging::Level::Error, format_args!($($arg)*))
+        $logger.log_format($crate::logging::Level::Error, format_args!($($arg)*))
     };
 }

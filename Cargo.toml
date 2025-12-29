@@ -7,11 +7,14 @@ members = [
     "crates/graphics",
     "crates/graphics-derive",
     "crates/graphics-widgets",
+    "crates/module-engine",
 ]
 
 [workspace.dependencies]
 ### General
 thiserror = "2.0.17"
+
+module-engine = { path = "crates/module-engine" }
 
 ### Other
 wasmtime = { version = "40.0.0", features = ["async"] }

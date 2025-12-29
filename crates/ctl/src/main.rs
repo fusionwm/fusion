@@ -1,7 +1,9 @@
 use bincode::{Decode, Encode};
 use clap::{Parser, Subcommand, ValueEnum};
-use std::io::{Read, Write};
-use uds_windows::UnixStream;
+use std::{
+    io::{Read, Write},
+    os::unix::net::UnixStream,
+};
 
 #[derive(Debug, Clone, Encode, Decode)]
 enum SocketCommandResult {

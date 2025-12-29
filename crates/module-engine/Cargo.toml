@@ -1,0 +1,29 @@
+[package]
+name = "module-engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+graphics.workspace = true
+
+wasmtime.workspace = true
+bytemuck.workspace = true
+serde.workspace = true
+bincode.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+notify.workspace = true
+tokio.workspace = true
+zip.workspace = true
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+hyper-rustls.workspace = true
+log.workspace = true
+dirs.workspace = true
+bitflags.workspace = true
+toml.workspace = true
+tree-sitter.workspace = true
+regex.workspace = true

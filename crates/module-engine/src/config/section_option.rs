@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tree_sitter::Node;
 
-use crate::module::config::{read_meta_info, read_meta_name, value::Value, value_type::ValueType};
+use crate::config::{read_meta_info, read_meta_name, value::Value, value_type::ValueType};
 
 #[derive(Debug, Clone)]
 pub struct SectionOption {

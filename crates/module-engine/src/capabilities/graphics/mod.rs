@@ -8,7 +8,7 @@ use crate::{
         graphics::ffi::{CWindowLayer, convert_window_layer_fast},
         read_wasm_memory_slice, read_wasm_string,
     },
-    module::context::ExecutionContext,
+    context::ExecutionContext,
 };
 
 pub struct DynamicWindowRoot {

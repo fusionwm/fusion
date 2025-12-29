@@ -1,8 +1,6 @@
 use wasmtime::{Caller, Func, Store};
 
-use crate::{
-    capabilities::read_wasm_string, debug, error, info, module::context::ExecutionContext, warn,
-};
+use crate::{capabilities::read_wasm_string, context::ExecutionContext, debug, error, info, warn};
 
 pub fn nms_log_debug(store: &mut Store<ExecutionContext>) -> Func {
     Func::wrap(

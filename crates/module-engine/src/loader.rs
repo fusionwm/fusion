@@ -13,7 +13,7 @@ use thiserror::Error;
 use tokio::sync::mpsc::Receiver;
 use zip::ZipArchive;
 
-use crate::module::{config::Config, manifest::Manifest};
+use crate::{config::Config, manifest::Manifest};
 
 #[derive(Error, Debug)]
 pub enum ModuleLoaderError {

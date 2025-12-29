@@ -25,10 +25,8 @@ use crate::{
         },
         system::audio::{nms_audio_mute, nms_audio_set_volume},
     },
-    module::{
-        context::ExecutionContext,
-        ffi::{FfiValue, ModuleAllocator},
-    },
+    context::ExecutionContext,
+    ffi::{FfiValue, ModuleAllocator},
 };
 use wasmtime::{Caller, Extern, Func, ImportType, Store};
 
