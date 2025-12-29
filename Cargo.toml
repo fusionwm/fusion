@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/prototype",
-    "crates/engine-tool",
+    "crates/compositor",
+    "crates/ctl",
     "crates/wl_client",
     "crates/graphics",
     "crates/graphics-derive",
