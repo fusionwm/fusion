@@ -1,8 +1,7 @@
-#include "../libnthm/ui.h"
-#include "allocator/o1heap.h"
-#include "heap.c"
-#include "print.c"
+#include "allocator/heap.c"
+#include "printf/print.h"
 #include <limits.h>
+#include <fusion/ui.h>
 
 void module_init() {
     info("Module init");

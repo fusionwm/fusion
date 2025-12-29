@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../libnthm/types.h"
-#include "../libnthm/module.h"
-#include "allocator/o1heap.h"
+#include <fusion/types.h>
+#include <fusion/module.h>
+#include "o1heap.h"
 
 O1HeapInstance *heap_instance;
 extern u8 __heap_base;

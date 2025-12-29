@@ -1,7 +1,7 @@
 #pragma once
 
-#include "printf/printf.h"
-#include "../libnthm/import.h"
+#include "printf.h"
+#include <fusion/import.h>
 
 static char message[1024] = { 0 };
 static usize message_pointer = 0;
