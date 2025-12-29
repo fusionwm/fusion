@@ -1,15 +1,15 @@
 pub mod styling;
 
+mod border;
+mod bounds;
 mod color;
 mod corners;
-mod rect;
 mod stroke;
 mod texture;
-mod border;
 
+pub use border::*;
+pub use bounds::*;
 pub use color::*;
 pub use corners::*;
-pub use rect::*;
 pub use stroke::*;
 pub use texture::*;
-pub use border::*;
