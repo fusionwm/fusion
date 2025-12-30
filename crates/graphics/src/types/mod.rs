@@ -1,5 +1,3 @@
-pub mod styling;
-
 mod border;
 mod bounds;
 mod color;

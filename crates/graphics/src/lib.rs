@@ -39,6 +39,7 @@ use std::{
     ffi::c_void,
     os::unix::net::UnixStream,
     ptr::NonNull,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 use wayland_client::{Connection, DispatchError, EventQueue, Proxy, backend::WaylandError};
@@ -53,7 +54,8 @@ pub struct InternalClient {
     event_queue: EventQueue<WlClient>,
     display_ptr: NonNull<c_void>,
 
-    gpu: Gpu,
+    gpu: Rc<Gpu>,
+    content: ContentManager,
 }
 
 impl InternalClient {
@@ -94,6 +96,9 @@ impl InternalClient {
             (display_ptr, gpu)
         };
 
+        let gpu = Rc::new(gpu);
+        let content = ContentManager::new(gpu.clone());
+
         Ok(Self {
             app: graphics,
             windows: vec![],
@@ -103,6 +108,7 @@ impl InternalClient {
             display_ptr,
 
             gpu,
+            content,
         })
     }
 
@@ -116,7 +122,6 @@ impl InternalClient {
         };
 
         let mut app = self.app.lock().unwrap();
-        app.dispatch_queue(&self.gpu)?;
 
         for (i, window) in self.windows.iter_mut().enumerate() {
             let mut backend = window
@@ -151,7 +156,7 @@ impl InternalClient {
                 continue;
             }
 
-            let mut commands = app.tick_render_frontend(i);
+            let mut commands = app.tick_render_frontend(&self.content, i);
             window.renderer.render(
                 &self.gpu,
                 &window.surface,

@@ -1,38 +1,21 @@
 use crate::{
-    ContentManager, Error, WindowHandle, commands::CommandBuffer, rendering::Gpu, types::Bounds,
-    widget::FrameContext,
+    ContentManager, WindowHandle, commands::CommandBuffer, types::Bounds, widget::FrameContext,
 };
 use glam::Vec2;
 
+#[derive(Default)]
 pub struct Graphics {
     pub(crate) frontends: Vec<Box<dyn WindowHandle>>,
     pub(crate) requested_frontends: Vec<Box<dyn WindowHandle>>,
-
-    content: ContentManager,
-}
-
-impl Default for Graphics {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Graphics {
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             frontends: vec![],
             requested_frontends: vec![],
-            content: ContentManager::default(),
         }
-    }
-
-    pub(crate) fn dispatch_queue(&mut self, gpu: &Gpu) -> Result<(), Error> {
-        self.content.dispatch_queue(gpu)
-    }
-
-    pub fn content_manager(&mut self) -> &mut ContentManager {
-        &mut self.content
     }
 
     pub fn add_window(&mut self, mut window: Box<dyn WindowHandle>) {
@@ -85,10 +68,14 @@ impl Graphics {
         ));
     }
 
-    pub(crate) fn tick_render_frontend(&mut self, index: usize) -> CommandBuffer<'_> {
+    pub(crate) fn tick_render_frontend<'a>(
+        &'a mut self,
+        content: &'a ContentManager,
+        index: usize,
+    ) -> CommandBuffer<'a> {
         let frontend = &mut self.frontends[index];
         let root = frontend.root_mut();
-        let mut commands = CommandBuffer::new(&self.content);
+        let mut commands = CommandBuffer::new(content);
         root.draw(&mut commands);
         commands.pack_active_group();
         commands

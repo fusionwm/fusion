@@ -18,7 +18,6 @@ use crate::rendering::material::Material;
 use crate::rendering::mesh::QuadMesh;
 use crate::rendering::text::FontAtlasSet;
 use crate::rendering::vertex::Vertex;
-use crate::{include_asset_content, load_asset_str};
 use glam::Mat4;
 use std::collections::HashMap;
 use wgpu::{

@@ -1,5 +1,5 @@
 use crate::{
-    ContentManager, FontHandle,
+    ContentManager,
     rendering::{Gpu, Renderer, instance::InstanceData},
     types::{Bounds, Color, Stroke, Texture},
 };

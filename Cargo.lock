@@ -1850,6 +1850,7 @@ dependencies = [
  "pollster",
  "rand",
  "resvg",
+ "slotmap",
  "thiserror 2.0.17",
  "wayland-client",
  "wgpu",
