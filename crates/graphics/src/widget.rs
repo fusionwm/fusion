@@ -1,6 +1,10 @@
 use std::any::Any;
 
-use crate::{ContentManager, commands::CommandBuffer, types::Bounds};
+use crate::{
+    ContentManager,
+    commands::CommandBuffer,
+    types::{Bounds, styling::StyleSheet},
+};
 use bitflags::bitflags;
 use glam::Vec2;
 use wl_client::ButtonState;
@@ -73,6 +77,7 @@ impl<C: Context> Default for Sender<C> {
     }
 }
 
+#[allow(unused)]
 pub trait Queryable {
     fn id(&self) -> Option<&str>;
     fn as_any(&self) -> &dyn Any;
@@ -133,7 +138,7 @@ impl Widget for Empty {
         Anchor::default()
     }
 
-    fn draw<'frame>(&'frame self, _: &mut CommandBuffer<'frame>) {}
+    fn draw<'frame, 'theme>(&'frame self, _: &'theme StyleSheet, _: &mut CommandBuffer<'frame>) {}
     fn layout(&mut self, _: Bounds) {}
     fn update(&mut self, _: &FrameContext) {}
 }
@@ -167,9 +172,9 @@ impl Widget for Option<Box<dyn Widget>> {
         }
     }
 
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>) {
+    fn draw<'frame>(&'frame self, stylesheet: &StyleSheet, out: &mut CommandBuffer<'frame>) {
         if let Some(widget) = self {
-            widget.draw(out);
+            widget.draw(stylesheet, out);
         }
     }
 
@@ -226,7 +231,7 @@ impl Queryable for Option<Box<dyn Widget>> {
 pub trait Widget: Queryable + Send + Sync {
     fn desired_size(&self) -> DesiredSize;
     fn anchor(&self) -> Anchor;
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>);
+    fn draw<'frame>(&'frame self, stylesheet: &StyleSheet, out: &mut CommandBuffer<'frame>);
     fn layout(&mut self, bounds: Bounds);
     fn update(&mut self, ctx: &FrameContext);
 }

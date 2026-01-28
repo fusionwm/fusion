@@ -1,10 +1,45 @@
 use graphics::{
-    commands::{CommandBuffer, DrawRectCommand, DrawTextureCommand},
+    commands::CommandBuffer,
     glam::Vec2,
-    types::{Argb8888, Bounds, Corners, Paint, PainterContext, Spacing, Stroke},
+    types::{Bounds, Spacing, styling::StyleSheet},
     widget::{Anchor, Context, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
+
+use crate::draw;
+
+pub struct ButtonStyle {
+    background: String,
+    border: String,
+    corners: String,
+}
+
+impl ButtonStyle {
+    fn new(widget: &str, state: &str) -> Self {
+        Self {
+            background: format!("{widget}:{state}:background"),
+            border: format!("{widget}:{state}:border"),
+            corners: format!("{widget}:{state}:corners"),
+        }
+    }
+}
+
+pub struct ButtonStyles {
+    normal: ButtonStyle,
+    hover: ButtonStyle,
+    pressed: ButtonStyle,
+}
+
+impl ButtonStyles {
+    #[must_use]
+    pub fn new(widget: &str) -> Self {
+        Self {
+            normal: ButtonStyle::new(widget, "normal"),
+            hover: ButtonStyle::new(widget, "hover"),
+            pressed: ButtonStyle::new(widget, "pressed"),
+        }
+    }
+}
 
 #[derive(Default, Debug, Clone, Copy)]
 enum ButtonFsm {
@@ -13,48 +48,6 @@ enum ButtonFsm {
     Hovered,
     Pressed,
     PressedOutside,
-}
-
-#[derive(Clone)]
-pub struct ButtonStyle {
-    pub background: Paint,
-    pub stroke: Stroke,
-    pub corners: Corners,
-}
-
-impl ButtonStyle {
-    pub(crate) fn normal() -> Self {
-        Self {
-            background: Argb8888::LIGHT_GRAY.into(),
-            stroke: Stroke {
-                color: [Argb8888::DARK_GRAY; 4],
-                width: 1.0,
-            },
-            corners: Corners::DEFAULT,
-        }
-    }
-
-    pub(crate) fn hover() -> Self {
-        Self {
-            background: Argb8888::new(230, 230, 230, 255).into(),
-            stroke: Stroke {
-                color: [Argb8888::BLUE; 4],
-                width: 1.0,
-            },
-            corners: Corners::DEFAULT,
-        }
-    }
-
-    pub(crate) fn pressed() -> Self {
-        Self {
-            background: Argb8888::GRAY.into(),
-            stroke: Stroke {
-                color: [Argb8888::DARK_GRAY; 4],
-                width: 1.0,
-            },
-            corners: Corners::DEFAULT,
-        }
-    }
 }
 
 #[derive(Default)]
@@ -91,12 +84,10 @@ where
 {
     id: Option<String>,
     pub size: Vec2,
-    pub normal: ButtonStyle,
-    pub hover: ButtonStyle,
-    pub pressed: ButtonStyle,
     pub alignment: Alignment,
     pub padding: Spacing,
     pub anchor: Anchor,
+    pub styles: ButtonStyles,
 
     bounds: Bounds,
     state: ButtonFsm,
@@ -122,13 +113,11 @@ where
     C: Context,
     CB: ButtonCallbacks<C>,
 {
-    fn new_internal(id: Option<String>) -> Self {
+    fn new_internal(id: Option<String>, widget_name: Option<&str>) -> Self {
         Self {
             id,
             size: Vec2::new(30.0, 30.0),
-            normal: ButtonStyle::normal(),
-            hover: ButtonStyle::hover(),
-            pressed: ButtonStyle::pressed(),
+            styles: ButtonStyles::new(widget_name.unwrap_or("button")),
             content: None,
             callbacks: CB::default(),
             bounds: Bounds::ZERO,
@@ -146,12 +135,16 @@ where
     }
 
     pub fn new_with_id(id: impl Into<String>) -> Self {
-        Self::new_internal(Some(id.into()))
+        Self::new_internal(Some(id.into()), Some("button"))
     }
 
     #[must_use]
     pub fn new() -> Self {
-        Self::new_internal(None)
+        Self::new_internal(None, Some("button"))
+    }
+
+    pub fn override_name(&mut self, name: &str) {
+        self.styles = ButtonStyles::new(name);
     }
 
     pub fn content_mut(&mut self) -> Option<&mut dyn Widget> {
@@ -186,38 +179,21 @@ where
         DesiredSize::Exact(self.size)
     }
 
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>) {
+    fn draw<'frame>(&'frame self, stylesheet: &StyleSheet, out: &mut CommandBuffer<'frame>) {
         let style = match self.state {
-            ButtonFsm::Normal => &self.normal,
-            ButtonFsm::Hovered => &self.hover,
-            ButtonFsm::Pressed | ButtonFsm::PressedOutside => &self.pressed,
+            ButtonFsm::Normal => &self.styles.normal,
+            ButtonFsm::Hovered => &self.styles.hover,
+            ButtonFsm::Pressed | ButtonFsm::PressedOutside => &self.styles.pressed,
         };
 
-        match &style.background {
-            Paint::Color(color) => {
-                out.push(
-                    DrawRectCommand::from_bounds(self.bounds)
-                        .with_color(color.clone())
-                        .with_stroke(style.stroke)
-                        .with_corners(style.corners),
-                );
-            }
-            Paint::Texture(texture) => out.push(
-                DrawTextureCommand::from_bounds(texture.clone(), self.bounds)
-                    .with_stroke(style.stroke)
-                    .with_corners(style.corners),
-            ),
-            Paint::Custom(custom) => custom.draw(
-                &PainterContext {
-                    bounds: self.bounds,
-                    border: style.stroke,
-                    corners: style.corners,
-                },
-                out,
-            ),
-        }
+        out.push(draw(
+            self.bounds,
+            stylesheet.get_component(&style.background),
+            stylesheet.get_stroke_component(&style.border),
+            stylesheet.get_corners_component(&style.corners),
+        ));
 
-        self.content.draw(out);
+        self.content.draw(stylesheet, out);
     }
 
     fn layout(&mut self, bounds: Bounds) {

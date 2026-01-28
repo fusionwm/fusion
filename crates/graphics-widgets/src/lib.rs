@@ -1,5 +1,10 @@
 #![allow(clippy::cast_precision_loss)]
 
+use graphics::{
+    commands::{DrawCommand, DrawRectCommand, DrawTextureCommand},
+    types::{Bounds, Corners, Stroke, styling::ThemeComponent},
+};
+
 pub mod button;
 pub mod image;
 pub mod row;
@@ -60,4 +65,25 @@ macro_rules! impl_proxy_widget {
             }
         }
     };
+}
+
+fn draw<'frame>(
+    bounds: Bounds,
+    component: ThemeComponent,
+    border: Stroke,
+    corners: Corners,
+) -> DrawCommand<'frame> {
+    match component {
+        ThemeComponent::Color(color) => DrawRectCommand::from_bounds(bounds)
+            .with_color(color)
+            .with_stroke(border)
+            .with_corners(corners)
+            .into(),
+        ThemeComponent::Texture(texture) => DrawTextureCommand::from_bounds(texture, bounds)
+            .with_stroke(border)
+            .with_corners(corners)
+            .into(),
+        ThemeComponent::Stroke(_) => unreachable!("Stroke component not supported"),
+        ThemeComponent::Corners(_) => unreachable!("Corners component not supported"),
+    }
 }

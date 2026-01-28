@@ -1,73 +1,41 @@
 use graphics::{
-    commands::{CommandBuffer, DrawRectCommand, DrawTextureCommand},
+    commands::CommandBuffer,
     glam::Vec2,
-    types::{Argb8888, Bounds, Corners, Paint, PainterContext, Stroke},
+    types::{Bounds, styling::StyleSheet},
     widget::{Anchor, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
 
-use crate::button::{Button, ButtonStyle};
+use crate::{button::Button, draw};
 
 pub struct BarStyle {
-    pub paint: Paint,
-    pub border: Stroke,
-    pub corners: Corners,
+    pub background: String,
+    pub border: String,
+    pub corner: String,
 }
 
 impl BarStyle {
-    fn background_default() -> Self {
+    fn new(widget: Option<impl Into<String>>, layer: &str) -> Self {
+        let widget = widget.map_or("slider".to_string(), core::convert::Into::into);
         Self {
-            paint: Argb8888::new(239, 239, 239, 255).into(),
-            border: Stroke {
-                color: [
-                    Argb8888::new(194, 194, 194, 255),
-                    Argb8888::WHITE,
-                    Argb8888::new(194, 194, 194, 255),
-                    Argb8888::WHITE,
-                ],
-                width: 1.0,
-            },
-            corners: Corners::NONE,
-        }
-    }
-
-    fn foreground_default() -> Self {
-        Self {
-            paint: Argb8888::TRANSPARENT.into(),
-            border: Stroke::NONE,
-            corners: Corners::NONE,
+            background: format!("{widget}:{layer}:background"),
+            border: format!("{widget}:{layer}:border"),
+            corner: format!("{widget}:{layer}:corners"),
         }
     }
 }
 
-pub struct HandleStyle {
-    pub normal: ButtonStyle,
-    pub hover: ButtonStyle,
-    pub pressed: ButtonStyle,
+pub struct SliderStyles {
+    background: BarStyle,
+    foreground: BarStyle,
 }
 
-impl HandleStyle {
-    fn default() -> Self {
+impl SliderStyles {
+    #[must_use]
+    pub fn new(widget: &str) -> Self {
         Self {
-            normal: ButtonStyle::normal(),
-            hover: ButtonStyle::hover(),
-            pressed: ButtonStyle::pressed(),
-        }
-    }
-}
-
-pub struct SliderStyle {
-    pub background: BarStyle,
-    pub foreground: BarStyle,
-    pub handle: HandleStyle,
-}
-
-impl Default for SliderStyle {
-    fn default() -> Self {
-        Self {
-            background: BarStyle::background_default(),
-            foreground: BarStyle::foreground_default(),
-            handle: HandleStyle::default(),
+            background: BarStyle::new(Some(widget), "background"),
+            foreground: BarStyle::new(Some(widget), "foreground"),
         }
     }
 }
@@ -80,7 +48,7 @@ pub struct Slider {
     value: f32,
 
     pub anchor: Anchor,
-    pub style: SliderStyle,
+    pub style: SliderStyles,
 
     bar_bounds: Bounds,
     foreground_bounds: Bounds,
@@ -93,21 +61,15 @@ pub struct Slider {
 impl Slider {
     fn new_internal(id: Option<String>, min: f32, max: f32) -> Self {
         let mut button = Button::new();
+        button.override_name("slider:handle");
         button.size = Vec2::new(8.0, 16.0);
-        button.normal.background = Argb8888 {
-            r: 255,
-            g: 0,
-            b: 0,
-            a: 128,
-        }
-        .into();
         Self {
             id,
             min,
             max,
             value: 0.0,
 
-            style: SliderStyle::default(),
+            style: SliderStyles::new("slider"),
 
             bar_bounds: Bounds::from_size((100.0, 5.0)),
             foreground_bounds: Bounds::ZERO,
@@ -151,69 +113,27 @@ impl Widget for Slider {
         self.anchor
     }
 
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>) {
-        // Draw background (сдвинутый)
-        match &self.style.background.paint {
-            Paint::Color(color) => out.push(
-                DrawRectCommand::from_bounds(self.bar_bounds)
-                    .with_color(color.clone())
-                    .with_stroke(self.style.background.border)
-                    .with_corners(self.style.background.corners),
-            ),
-            Paint::Texture(texture) => out.push(
-                DrawTextureCommand::from_bounds(texture.clone(), self.bar_bounds)
-                    .with_stroke(self.style.background.border)
-                    .with_corners(self.style.background.corners),
-            ),
-            Paint::Custom(custom) => custom.draw(
-                &PainterContext {
-                    bounds: self.bar_bounds,
-                    border: self.style.background.border,
-                    corners: self.style.background.corners,
-                },
-                out,
-            ),
-        }
+    fn draw<'frame>(&'frame self, stylesheet: &StyleSheet, out: &mut CommandBuffer<'frame>) {
+        //Background
+        out.push(draw(
+            self.bar_bounds,
+            stylesheet.get_component(&self.style.background.background),
+            stylesheet.get_stroke_component(&self.style.background.border),
+            stylesheet.get_corners_component(&self.style.background.corner),
+        ));
 
-        //out.push(DrawRectCommand::new(
-        //    self.bar_bounds,
-        //    self.background.clone(),
-        //    self.background_border.clone(),
-        //    Corners::default(),
-        //));
+        //Foreground
+        out.push(draw(
+            self.foreground_bounds,
+            stylesheet.get_component(&self.style.foreground.background),
+            stylesheet.get_stroke_component(&self.style.foreground.border),
+            stylesheet.get_corners_component(&self.style.foreground.corner),
+        ));
 
-        // Draw foreground (сдвинутый)
-        match &self.style.foreground.paint {
-            Paint::Color(color) => out.push(
-                DrawRectCommand::from_bounds(self.foreground_bounds)
-                    .with_color(color.clone())
-                    .with_stroke(self.style.foreground.border)
-                    .with_corners(self.style.foreground.corners),
-            ),
-            Paint::Texture(texture) => out.push(
-                DrawTextureCommand::from_bounds(texture.clone(), self.foreground_bounds)
-                    .with_stroke(self.style.foreground.border)
-                    .with_corners(self.style.foreground.corners),
-            ),
-            Paint::Custom(custom) => custom.draw(
-                &PainterContext {
-                    bounds: self.foreground_bounds,
-                    border: self.style.foreground.border,
-                    corners: self.style.foreground.corners,
-                },
-                out,
-            ),
-        }
-
-        self.button.draw(out);
+        self.button.draw(stylesheet, out);
     }
 
     fn layout(&mut self, bar_bounds: Bounds) {
-        //TODO FIX
-        self.button.normal = self.style.handle.normal.clone();
-        self.button.hover = self.style.handle.hover.clone();
-        self.button.pressed = self.style.handle.pressed.clone();
-
         // 1. Определяем размер handle и смещение (offset)
         let handle_size = self.button.size;
         let vertical_offset = handle_size.y / 2.0;

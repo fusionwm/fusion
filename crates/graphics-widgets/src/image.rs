@@ -2,7 +2,7 @@ use graphics::{
     Handle,
     commands::{CommandBuffer, DrawRectCommand, DrawTextureCommand},
     glam::Vec2,
-    types::{Argb8888, Bounds, Corners, Stroke, Texture},
+    types::{Argb8888, Bounds, Corners, Stroke, Texture, styling::StyleSheet},
     widget::{Anchor, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
@@ -51,10 +51,10 @@ impl Widget for Image {
         self.anchor
     }
 
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>) {
+    fn draw<'frame>(&'frame self, stylesheet: &StyleSheet, out: &mut CommandBuffer<'frame>) {
         if let Some(handle) = &self.handle {
             out.push(DrawTextureCommand::new(
-                self.rect.clone(),
+                self.rect,
                 Texture {
                     color: Argb8888::WHITE.into(),
                     handle: handle.clone(),

@@ -1,7 +1,10 @@
 use graphics::{
     commands::{CommandBuffer, DrawCommand, DrawRectCommand, DrawTextureCommand},
     glam::Vec2,
-    types::{Bounds, Corners, Spacing, Stroke, styling::BackgroundStyle},
+    types::{
+        Bounds, Corners, Spacing, Stroke,
+        styling::{BackgroundStyle, StyleSheet},
+    },
     widget::{Anchor, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
@@ -220,7 +223,7 @@ impl Widget for Row {
         self.anchor
     }
 
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>) {
+    fn draw<'frame>(&'frame self, stylesheet: &StyleSheet, out: &mut CommandBuffer<'frame>) {
         let command = match &self.background {
             BackgroundStyle::Color(color) => DrawCommand::Rect(DrawRectCommand::new(
                 self.bounds,
@@ -239,7 +242,7 @@ impl Widget for Row {
         out.push(command);
 
         self.content.iter().for_each(|f| {
-            f.draw(out);
+            f.draw(stylesheet, out);
         });
     }
 

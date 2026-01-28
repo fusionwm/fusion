@@ -59,7 +59,7 @@ pub fn test(graphics: &mut Graphics) {
     label.set_text("Loading...");
 
     let mut slider = Slider::default();
-    slider.style.handle.normal.background = Paint::Custom(Box::new(slider_handle));
+    //slider.style.handle.normal.background = Paint::Custom(Box::new(slider_handle));
 
     let mut row = Row::new();
     row.anchor = Anchor::Center;

@@ -3,7 +3,7 @@ use graphics::{
     commands::{CommandBuffer, DrawCommand, DrawTextCommand},
     fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle},
     glam::Vec2,
-    types::{Argb8888, Bounds, Spacing},
+    types::{Argb8888, Bounds, Spacing, styling::StyleSheet},
     widget::{Anchor, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
@@ -115,7 +115,7 @@ impl Widget for Text {
         self.anchor
     }
 
-    fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>) {
+    fn draw<'frame>(&'frame self, stylesheet: &StyleSheet, out: &mut CommandBuffer<'frame>) {
         out.push(DrawCommand::Text(DrawTextCommand::new(
             self.size,
             self.color,

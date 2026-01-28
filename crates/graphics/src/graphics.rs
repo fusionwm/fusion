@@ -1,5 +1,11 @@
 use crate::{
-    ContentManager, WindowHandle, commands::CommandBuffer, types::Bounds, widget::FrameContext,
+    ContentManager, WindowHandle,
+    commands::CommandBuffer,
+    types::{
+        Bounds,
+        styling::{AERO_THEME, StyleSheet},
+    },
+    widget::FrameContext,
 };
 use glam::Vec2;
 
@@ -68,15 +74,16 @@ impl Graphics {
         ));
     }
 
-    pub(crate) fn tick_render_frontend<'a>(
-        &'a mut self,
-        content: &'a ContentManager,
+    pub(crate) fn tick_render_frontend<'frame>(
+        &'frame mut self,
+        stylesheet: &'frame StyleSheet,
+        content: &'frame ContentManager,
         index: usize,
-    ) -> CommandBuffer<'a> {
+    ) -> CommandBuffer<'frame> {
         let frontend = &mut self.frontends[index];
         let root = frontend.root_mut();
         let mut commands = CommandBuffer::new(content);
-        root.draw(&mut commands);
+        root.draw(&AERO_THEME, &mut commands);
         commands.pack_active_group();
         commands
     }
