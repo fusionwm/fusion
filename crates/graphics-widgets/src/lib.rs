@@ -5,7 +5,6 @@ pub mod image;
 pub mod row;
 pub mod slider;
 pub mod text;
-pub mod timer;
 
 #[macro_export]
 macro_rules! impl_proxy_widget {

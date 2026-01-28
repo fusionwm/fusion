@@ -59,12 +59,7 @@ impl Argb8888 {
         let b: u8 = rng.random_range(0..=255);
         let a: u8 = rng.random_range(0..=255);
 
-        Self {
-            r,
-            g,
-            b,
-            a,
-        }
+        Self { r, g, b, a }
     }
 }
 

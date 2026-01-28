@@ -1,6 +1,6 @@
 use super::Argb8888;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Stroke {
     ///Left, Right, Top, Bottom
     pub color: [Argb8888; 4],

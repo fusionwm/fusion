@@ -20,3 +20,5 @@ resvg.workspace = true
 thiserror.workspace = true
 bitflags.workspace = true
 slotmap.workspace = true
+lasso.workspace = true
+lazy_static.workspace = true

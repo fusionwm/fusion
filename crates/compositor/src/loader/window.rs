@@ -3,7 +3,7 @@ use graphics::{
     commands::{CommandBuffer, DrawRectCommand},
     graphics::Graphics,
     reexports::DesktopOptions,
-    types::{Argb8888, Corners, Paint, Painter, PainterContext, Stroke},
+    types::{Argb8888, Corners, Paint, PainterContext, Stroke},
     widget::{Anchor, Widget},
     window::WindowRequest,
 };
