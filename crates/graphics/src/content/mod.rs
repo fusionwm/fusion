@@ -203,7 +203,7 @@ impl ContentManager {
             })
     }
 
-    pub(crate) fn get_texture(&self, handle: &Handle) -> &Material {
+    pub(crate) fn get_material(&self, handle: &Handle) -> &Material {
         match handle {
             Handle::Texture(handle) => self.static_textures.get(handle.id).unwrap(),
             Handle::Svg(handle) => {
@@ -215,6 +215,22 @@ impl ContentManager {
                     .get(&(handle.width, handle.height))
                     .unwrap();
                 self.static_textures.get(handle.id).unwrap()
+            }
+        }
+    }
+
+    pub(crate) fn get_mut_material(&mut self, handle: &Handle) -> &mut Material {
+        match handle {
+            Handle::Texture(handle) => self.static_textures.get_mut(handle.id).unwrap(),
+            Handle::Svg(handle) => {
+                let handle = self
+                    .svg
+                    .get(handle.id)
+                    .unwrap()
+                    .textures
+                    .get(&(handle.width, handle.height))
+                    .unwrap();
+                self.static_textures.get_mut(handle.id).unwrap()
             }
         }
     }

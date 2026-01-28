@@ -11,22 +11,29 @@ use wgpu::RenderPass;
 
 #[enum_dispatch(DrawCommand)]
 pub(crate) trait DrawDispatcher {
-    fn start(
+    fn prepare(
         &mut self,
         pipeline: &mut Renderer,
         gpu: &Gpu,
         content: &ContentManager,
         renderpass: &mut RenderPass,
+    ) -> u32;
+
+    fn finish(
+        &self,
+        pipeline: &mut Renderer,
+        gpu: &Gpu,
+        content: &ContentManager,
+        renderpass: &mut RenderPass,
+        count: u32,
     );
-    fn prepare(&mut self, pipeline: &mut Renderer, gpu: &Gpu, renderpass: &mut RenderPass) -> u32;
-    fn finish(&self, pipeline: &mut Renderer, gpu: &Gpu, renderpass: &mut RenderPass, count: u32);
 }
 
 pub struct DrawRectCommand {
-    rect: Bounds,
-    color: Color,
-    stroke: Stroke,
-    corners: Corners,
+    pub rect: Bounds,
+    pub color: Color,
+    pub stroke: Stroke,
+    pub corners: Corners,
 }
 
 impl DrawRectCommand {
@@ -60,24 +67,35 @@ impl DrawRectCommand {
         self.corners = corners;
         self
     }
+
+    #[must_use]
+    pub const fn with_stroke(mut self, stroke: Stroke) -> Self {
+        self.stroke = stroke;
+        self
+    }
 }
 
 impl DrawDispatcher for DrawRectCommand {
-    fn start(&mut self, _: &mut Renderer, _: &Gpu, _: &ContentManager, _: &mut RenderPass) {}
-
-    fn prepare(&mut self, pipeline: &mut Renderer, _: &Gpu, _: &mut RenderPass) -> u32 {
+    fn prepare(
+        &mut self,
+        pipeline: &mut Renderer,
+        _: &Gpu,
+        _: &ContentManager,
+        _: &mut RenderPass,
+    ) -> u32 {
         const UV: [Vec2; 4] = [
             Vec2::new(0.0, 0.0),
             Vec2::new(1.0, 0.0),
             Vec2::new(1.0, 1.0),
             Vec2::new(0.0, 1.0),
         ];
+
         pipeline.material.push(InstanceData::new_uv_2(
             UV,
             self.rect.position.round(),
             self.rect.size.round(),
             &self.color,
-            Some(self.stroke.clone()),
+            Some(self.stroke),
             self.corners,
             pipeline.projection,
         ));
@@ -85,7 +103,14 @@ impl DrawDispatcher for DrawRectCommand {
         1
     }
 
-    fn finish(&self, pipeline: &mut Renderer, gpu: &Gpu, renderpass: &mut RenderPass, count: u32) {
+    fn finish(
+        &self,
+        pipeline: &mut Renderer,
+        gpu: &Gpu,
+        _: &ContentManager,
+        renderpass: &mut RenderPass,
+        count: u32,
+    ) {
         pipeline.material.draw_instances(gpu, renderpass, count);
     }
 }
@@ -107,27 +132,58 @@ impl DrawTextureCommand {
             corners,
         }
     }
+
+    #[must_use]
+    pub const fn from_bounds(texture: Texture, bounds: Bounds) -> Self {
+        Self {
+            rect: bounds,
+            texture,
+            stroke: Stroke::NONE,
+            corners: Corners::NONE,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_texture(mut self, texture: Texture) -> Self {
+        self.texture = texture;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_corners(mut self, corners: Corners) -> Self {
+        self.corners = corners;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_stroke(mut self, stroke: Stroke) -> Self {
+        self.stroke = stroke;
+        self
+    }
 }
 
 impl DrawDispatcher for DrawTextureCommand {
-    fn start(&mut self, _: &mut Renderer, _: &Gpu, _: &ContentManager, _: &mut RenderPass) {
-        //let material = content.get_texture(&self.texture.handle);
-        //renderpass.set_bind_group(0, &material.bind_group, &[]);
-    }
-
-    fn prepare(&mut self, pipeline: &mut Renderer, _: &Gpu, _: &mut RenderPass) -> u32 {
+    fn prepare(
+        &mut self,
+        pipeline: &mut Renderer,
+        _: &Gpu,
+        content: &ContentManager,
+        _: &mut RenderPass,
+    ) -> u32 {
         const UV: [Vec2; 4] = [
             Vec2::new(0.0, 0.0),
             Vec2::new(1.0, 0.0),
             Vec2::new(1.0, 1.0),
             Vec2::new(0.0, 1.0),
         ];
-        pipeline.material.push(InstanceData::new_uv_2(
+
+        let mut material = content.get_material(&self.texture.handle).as_unsafe();
+        material.push(InstanceData::new_uv_2(
             UV,
             self.rect.position,
             self.rect.size,
             &self.texture.color,
-            Some(self.stroke.clone()),
+            Some(self.stroke),
             self.corners,
             pipeline.projection,
         ));
@@ -135,8 +191,16 @@ impl DrawDispatcher for DrawTextureCommand {
         1
     }
 
-    fn finish(&self, pipeline: &mut Renderer, gpu: &Gpu, renderpass: &mut RenderPass, count: u32) {
-        //TODO
+    fn finish(
+        &self,
+        _: &mut Renderer,
+        gpu: &Gpu,
+        content: &ContentManager,
+        renderpass: &mut RenderPass,
+        count: u32,
+    ) {
+        let mut material = content.get_material(&self.texture.handle).as_unsafe();
+        material.draw_instances(gpu, renderpass, count);
     }
 }
 
@@ -167,9 +231,13 @@ impl<'frame> DrawTextCommand<'frame> {
 }
 
 impl DrawDispatcher for DrawTextCommand<'_> {
-    fn start(&mut self, _: &mut Renderer, _: &Gpu, _: &ContentManager, _: &mut RenderPass) {}
-
-    fn prepare(&mut self, pipeline: &mut Renderer, gpu: &Gpu, _: &mut RenderPass) -> u32 {
+    fn prepare(
+        &mut self,
+        pipeline: &mut Renderer,
+        gpu: &Gpu,
+        _: &ContentManager,
+        _: &mut RenderPass,
+    ) -> u32 {
         let set = pipeline
             .fonts
             .entry(self.font.inner.name().unwrap().to_string())
@@ -204,7 +272,14 @@ impl DrawDispatcher for DrawTextCommand<'_> {
         self.layout.glyphs().len() as u32
     }
 
-    fn finish(&self, pipeline: &mut Renderer, gpu: &Gpu, renderpass: &mut RenderPass, count: u32) {
+    fn finish(
+        &self,
+        pipeline: &mut Renderer,
+        gpu: &Gpu,
+        _: &ContentManager,
+        renderpass: &mut RenderPass,
+        count: u32,
+    ) {
         let set = pipeline
             .fonts
             .entry(self.font.inner.name().unwrap().to_string())
@@ -251,20 +326,11 @@ impl PackedGroup<'_> {
         let mut count = 0;
 
         for (i, command) in self.inner.iter_mut().enumerate() {
-            if len == 1 {
-                command.start(pipeline, gpu, content, renderpass);
-                count += command.prepare(pipeline, gpu, renderpass);
-                command.finish(pipeline, gpu, renderpass, count);
+            count += command.prepare(pipeline, gpu, content, renderpass);
+
+            if i == len - 1 {
+                command.finish(pipeline, gpu, content, renderpass, count);
                 count = 0;
-            } else if i == 0 {
-                command.start(pipeline, gpu, content, renderpass);
-                count += command.prepare(pipeline, gpu, renderpass);
-            } else if i == len - 1 {
-                count += command.prepare(pipeline, gpu, renderpass);
-                command.finish(pipeline, gpu, renderpass, count);
-                count = 0;
-            } else {
-                count += command.prepare(pipeline, gpu, renderpass);
             }
         }
     }

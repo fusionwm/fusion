@@ -1,13 +1,13 @@
 use graphics::{
     WindowHandle,
+    commands::{CommandBuffer, DrawRectCommand},
     graphics::Graphics,
-    reexports::{DesktopOptions, SpecialOptions, TargetMonitor},
-    types::{Argb8888, LinearGradient},
+    reexports::DesktopOptions,
+    types::{Argb8888, Corners, Paint, Painter, PainterContext, Stroke},
     widget::{Anchor, Widget},
     window::WindowRequest,
 };
 use graphics_widgets::{row::Row, slider::Slider, text::Text};
-use smithay::reexports::input::AccelProfile;
 
 pub struct LoaderWindow {
     request: WindowRequest,
@@ -36,14 +36,30 @@ impl WindowHandle for LoaderWindow {
     }
 }
 
+fn slider_handle(ctx: &PainterContext, out: &mut CommandBuffer) {
+    out.push(DrawRectCommand {
+        rect: ctx.bounds,
+        color: Argb8888::new(240, 240, 240, 255).into(),
+        stroke: Stroke {
+            color: [
+                Argb8888::new(150, 150, 150, 255),
+                Argb8888::new(150, 150, 150, 255),
+                Argb8888::new(150, 150, 150, 255),
+                Argb8888::new(150, 150, 150, 255),
+            ],
+            width: 1.0,
+        },
+        corners: Corners::NONE,
+    });
+}
+
 pub fn test(graphics: &mut Graphics) {
     let mut label = Text::new();
     //label.anchor = Anchor::Center;
     label.set_text("Loading...");
 
     let mut slider = Slider::default();
-    slider.add_value(50.0);
-    slider.foreground = LinearGradient::new(Argb8888::RED, Argb8888::YELLOW, 0.0).into();
+    slider.style.handle.normal.background = Paint::Custom(Box::new(slider_handle));
 
     let mut row = Row::new();
     row.anchor = Anchor::Center;

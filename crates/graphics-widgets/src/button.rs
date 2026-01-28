@@ -1,7 +1,7 @@
 use graphics::{
     commands::{CommandBuffer, DrawRectCommand, DrawTextureCommand},
     glam::Vec2,
-    types::{Argb8888, Bounds, Color, Corners, Spacing, Stroke, styling::BackgroundStyle},
+    types::{Argb8888, Bounds, Corners, Paint, PainterContext, Spacing, Stroke},
     widget::{Anchor, Context, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
@@ -15,11 +15,46 @@ enum ButtonFsm {
     PressedOutside,
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct ButtonStyle {
-    pub background: BackgroundStyle,
+    pub background: Paint,
     pub stroke: Stroke,
     pub corners: Corners,
+}
+
+impl ButtonStyle {
+    pub(crate) fn normal() -> Self {
+        Self {
+            background: Argb8888::LIGHT_GRAY.into(),
+            stroke: Stroke {
+                color: [Argb8888::DARK_GRAY; 4],
+                width: 1.0,
+            },
+            corners: Corners::DEFAULT,
+        }
+    }
+
+    pub(crate) fn hover() -> Self {
+        Self {
+            background: Argb8888::new(230, 230, 230, 255).into(),
+            stroke: Stroke {
+                color: [Argb8888::BLUE; 4],
+                width: 1.0,
+            },
+            corners: Corners::DEFAULT,
+        }
+    }
+
+    pub(crate) fn pressed() -> Self {
+        Self {
+            background: Argb8888::GRAY.into(),
+            stroke: Stroke {
+                color: [Argb8888::DARK_GRAY; 4],
+                width: 1.0,
+            },
+            corners: Corners::DEFAULT,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -91,32 +126,9 @@ where
         Self {
             id,
             size: Vec2::new(30.0, 30.0),
-            normal: ButtonStyle {
-                background: BackgroundStyle::Color(Color::Simple(Argb8888::LIGHT_GRAY)),
-                stroke: Stroke {
-                    color: [Argb8888::DARK_GRAY; 4],
-                    width: 1.0,
-                },
-                corners: Corners::DEFAULT,
-            },
-            hover: ButtonStyle {
-                background: BackgroundStyle::Color(Color::Simple(Argb8888::new(
-                    230, 230, 230, 255,
-                ))),
-                stroke: Stroke {
-                    color: [Argb8888::BLUE; 4],
-                    width: 1.0,
-                },
-                corners: Corners::DEFAULT,
-            },
-            pressed: ButtonStyle {
-                background: BackgroundStyle::Color(Color::Simple(Argb8888::GRAY)),
-                stroke: Stroke {
-                    color: [Argb8888::DARK_GRAY; 4],
-                    width: 1.0,
-                },
-                corners: Corners::DEFAULT,
-            },
+            normal: ButtonStyle::normal(),
+            hover: ButtonStyle::hover(),
+            pressed: ButtonStyle::pressed(),
             content: None,
             callbacks: CB::default(),
             bounds: Bounds::ZERO,
@@ -180,26 +192,37 @@ where
             ButtonFsm::Hovered => &self.hover,
             ButtonFsm::Pressed | ButtonFsm::PressedOutside => &self.pressed,
         };
+
         match &style.background {
-            BackgroundStyle::Color(color) => out.push(DrawRectCommand::new(
-                self.bounds,
-                color.clone(),
-                style.stroke.clone(),
-                style.corners,
-            )),
-            BackgroundStyle::Texture(texture) => out.push(DrawTextureCommand::new(
-                self.bounds,
-                texture.clone(),
-                style.stroke.clone(),
-                style.corners,
-            )),
+            Paint::Color(color) => {
+                out.push(
+                    DrawRectCommand::from_bounds(self.bounds)
+                        .with_color(color.clone())
+                        .with_stroke(style.stroke)
+                        .with_corners(style.corners),
+                );
+            }
+            Paint::Texture(texture) => out.push(
+                DrawTextureCommand::from_bounds(texture.clone(), self.bounds)
+                    .with_stroke(style.stroke)
+                    .with_corners(style.corners),
+            ),
+            Paint::Custom(custom) => custom.draw(
+                &PainterContext {
+                    bounds: self.bounds,
+                    border: style.stroke,
+                    corners: style.corners,
+                },
+                out,
+            ),
         }
+
         self.content.draw(out);
     }
 
     fn layout(&mut self, bounds: Bounds) {
         //println!("Bounds: {:#?}", bounds);
-        self.bounds = bounds.clone();
+        self.bounds = bounds;
 
         let content_size = match self.content.desired_size() {
             DesiredSize::Exact(min) => Vec2::new(

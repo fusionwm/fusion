@@ -1,3 +1,5 @@
+use core::ops::{Deref, DerefMut};
+
 use crate::{
     error::Error,
     rendering::{
@@ -22,6 +24,24 @@ pub struct MaterialDescriptor<'a> {
     pub min_filter: FilterMode,
 }
 
+pub struct UnsafeMaterial {
+    inner: *mut Material,
+}
+
+impl Deref for UnsafeMaterial {
+    type Target = Material;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.inner }
+    }
+}
+
+impl DerefMut for UnsafeMaterial {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.inner }
+    }
+}
+
 pub struct Material {
     pub bind_group: BindGroup,
     pub instances: Vec<InstanceData>,
@@ -34,6 +54,12 @@ pub struct Material {
 const MAX_INSTANCES: usize = 2048;
 
 impl Material {
+    pub(crate) fn as_unsafe(&self) -> UnsafeMaterial {
+        UnsafeMaterial {
+            inner: self as *const Material as *mut Material,
+        }
+    }
+
     pub(crate) fn from_pixels(desc: &MaterialDescriptor, device: &Device, queue: &Queue) -> Self {
         let texture_size = Extent3d {
             width: desc.size.0,

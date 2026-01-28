@@ -159,37 +159,37 @@ fn fs_main(in: VertexPayload) -> @location(0) vec4<f32> {
     let support_stroke: u32 = u32(instance.misc.z);
     let stroke_width: f32 = instance.misc.w;
 
-    if use_gradient >= 1u {
-        let angle = degree * 3.14159265 / 180.0;
-        let dir = vec2<f32>(cos(angle), sin(angle));
-        let centered_uv = in.uv - vec2<f32>(0.5);
-        let max_len = 0.707;
-        let raw_t = dot(centered_uv, dir);
-        let t = clamp((raw_t / max_len + 1.0) * 0.5, 0.0, 1.0);
-        baseColor = texColor * mix(instance.color, instance.color_end, t);
-    }
+    //if use_gradient >= 1u {
+    //    let angle = degree * 3.14159265 / 180.0;
+    //    let dir = vec2<f32>(cos(angle), sin(angle));
+    //    let centered_uv = in.uv - vec2<f32>(0.5);
+    //    let max_len = 0.707;
+    //    let raw_t = dot(centered_uv, dir);
+    //    let t = clamp((raw_t / max_len + 1.0) * 0.5, 0.0, 1.0);
+    //    baseColor = texColor * mix(instance.color, instance.color_end, t);
+    //}
 
-    if stroke_width > 0.0 && support_stroke >= 1u {
-        let stroke_norm = vec2(
-            stroke_width / instance.size.x,
-            stroke_width / instance.size.y
-        );
+    //if stroke_width > 0.0 && support_stroke >= 1u {
+    //    let stroke_norm = vec2(
+    //        stroke_width / instance.size.x,
+    //        stroke_width / instance.size.y
+    //    );
 
-        let left_factor = step(in.uv.x, stroke_norm.x);
-        let right_factor = step(1.0 - in.uv.x, stroke_norm.x);
-        let top_factor = step(in.uv.y, stroke_norm.y);
-        let bottom_factor = step(1.0 - in.uv.y, stroke_norm.y);
+    //    let left_factor = step(in.uv.x, stroke_norm.x);
+    //    let right_factor = step(1.0 - in.uv.x, stroke_norm.x);
+    //    let top_factor = step(in.uv.y, stroke_norm.y);
+    //    let bottom_factor = step(1.0 - in.uv.y, stroke_norm.y);
 
-        if (left_factor > 0.0) {
-            return instance.stroke_color_left;
-        } else if (right_factor > 0.0) {
-            return instance.stroke_color_right;
-        } else if (top_factor > 0.0) {
-            return instance.stroke_color_top;
-        } else if (bottom_factor > 0.0) {
-            return instance.stroke_color_bottom;
-        }
-    }
+    //    if (left_factor > 0.0) {
+    //        return instance.stroke_color_left;
+    //    } else if (right_factor > 0.0) {
+    //        return instance.stroke_color_right;
+    //    } else if (top_factor > 0.0) {
+    //        return instance.stroke_color_top;
+    //    } else if (bottom_factor > 0.0) {
+    //        return instance.stroke_color_bottom;
+    //    }
+    //}
 
     return baseColor;
 }

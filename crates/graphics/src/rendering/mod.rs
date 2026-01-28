@@ -66,8 +66,15 @@ impl Renderer {
         let format = caps
             .formats
             .iter()
-            .find(|&&f| matches!(f, wgpu::TextureFormat::Rgba8Unorm))
-            .unwrap_or(&caps.formats[0]);
+            .copied()
+            // Ищем именно Unorm без Srgb
+            .find(|f| {
+                matches!(
+                    f,
+                    wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Rgba8Unorm
+                )
+            })
+            .unwrap_or(caps.formats[0]);
 
         let render_pipeline = gpu
             .device
@@ -86,7 +93,7 @@ impl Renderer {
                     compilation_options: PipelineCompilationOptions::default(),
                     targets: &[Some(ColorTargetState {
                         //format: surface.get_capabilities(&gpu.adapter).formats[0],
-                        format: *format,
+                        format,
                         blend: Some(BlendState::ALPHA_BLENDING),
                         write_mask: ColorWrites::ALL,
                     })],

@@ -33,11 +33,17 @@ impl Gpu {
         let caps = surface.get_capabilities(&adapter);
 
         // Cache values
-        let surface_format = *caps
+        let surface_format = caps
             .formats
             .iter()
-            .find(|&&f| matches!(f, wgpu::TextureFormat::Rgba8Unorm))
-            .unwrap_or(&caps.formats[0]);
+            .copied()
+            .find(|f| {
+                matches!(
+                    f,
+                    wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Rgba8Unorm
+                )
+            })
+            .unwrap_or(caps.formats[0]);
 
         let alpha_mode = caps.alpha_modes[0];
 
