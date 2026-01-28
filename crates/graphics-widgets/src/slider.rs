@@ -94,7 +94,11 @@ impl Widget for Slider {
 
     fn draw<'frame>(&'frame self, out: &mut CommandBuffer<'frame>) {
         // Draw background (сдвинутый)
-        out.push(DrawRectCommand::from_bounds(self.bar_bounds).with_color(self.background.clone()));
+        out.push(
+            DrawRectCommand::from_bounds(self.bar_bounds)
+                .with_color(self.background.clone())
+                .with_corners(Corners::DEFAULT),
+        );
 
         out.push(DrawRectCommand::new(
             self.bar_bounds,

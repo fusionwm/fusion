@@ -2,7 +2,7 @@ use graphics::{
     Handle,
     commands::{CommandBuffer, DrawRectCommand, DrawTextureCommand},
     glam::Vec2,
-    types::{Argb8888, Bounds, Stroke, Texture},
+    types::{Argb8888, Bounds, Corners, Stroke, Texture},
     widget::{Anchor, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
@@ -60,12 +60,14 @@ impl Widget for Image {
                     handle: handle.clone(),
                 },
                 Stroke::NONE,
+                Corners::NONE,
             ));
         } else {
             out.push(DrawRectCommand::new(
                 self.rect.clone(),
                 Argb8888::WHITE,
                 Stroke::NONE,
+                Corners::NONE,
             ));
         }
     }

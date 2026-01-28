@@ -1,12 +1,13 @@
 use graphics::{
     WindowHandle,
     graphics::Graphics,
-    reexports::{SpecialOptions, TargetMonitor},
-    types::Argb8888,
+    reexports::{DesktopOptions, SpecialOptions, TargetMonitor},
+    types::{Argb8888, LinearGradient},
     widget::{Anchor, Widget},
     window::WindowRequest,
 };
-use graphics_widgets::{row::Row, text::Text};
+use graphics_widgets::{row::Row, slider::Slider, text::Text};
+use smithay::reexports::input::AccelProfile;
 
 pub struct LoaderWindow {
     request: WindowRequest,
@@ -37,21 +38,36 @@ impl WindowHandle for LoaderWindow {
 
 pub fn test(graphics: &mut Graphics) {
     let mut label = Text::new();
-    label.anchor = Anchor::Center;
+    //label.anchor = Anchor::Center;
     label.set_text("Loading...");
 
+    let mut slider = Slider::default();
+    slider.add_value(50.0);
+    slider.foreground = LinearGradient::new(Argb8888::RED, Argb8888::YELLOW, 0.0).into();
+
     let mut row = Row::new();
+    row.anchor = Anchor::Center;
     row.background = Argb8888::BLACK.into();
     row.content_mut().push(Box::new(label));
+    row.content_mut().push(Box::new(slider));
+
+    let mut label = Text::new();
+    label.set_text("AGA");
+    //row.content_mut().push(Box::new(label));
 
     let window = LoaderWindow::new(
-        WindowRequest::new("Loader window").background(SpecialOptions {
-            anchor: graphics::reexports::Anchor::Bottom,
-            exclusive_zone: 600,
-            target: TargetMonitor::Primary,
-        }),
+        WindowRequest::new("Loader window").desktop(DesktopOptions::default()),
         Box::new(row),
     );
+
+    //let window = LoaderWindow::new(
+    //    WindowRequest::new("Loader window").background(SpecialOptions {
+    //        anchor: graphics::reexports::Anchor::Bottom,
+    //        exclusive_zone: 600,
+    //        target: TargetMonitor::Primary,
+    //    }),
+    //    Box::new(row),
+    //);
 
     graphics.add_window(Box::new(window));
 }

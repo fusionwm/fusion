@@ -1,6 +1,6 @@
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, Device,
-    Sampler, TextureView,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource,
+    BufferBinding, Device, Sampler, TextureView,
 };
 
 pub struct BindGroupBuilder<'a> {
@@ -26,7 +26,12 @@ impl<'a> BindGroupBuilder<'a> {
         self.layout = Some(layout);
     }
 
-    pub fn add_material(&mut self, view: &'a TextureView, sampler: &'a Sampler) {
+    pub fn add_material(
+        &mut self,
+        view: &'a TextureView,
+        sampler: &'a Sampler,
+        buffer: BufferBinding<'a>,
+    ) {
         self.entries.push(BindGroupEntry {
             binding: self.entries.len() as u32,
             resource: BindingResource::TextureView(view),
@@ -35,6 +40,11 @@ impl<'a> BindGroupBuilder<'a> {
         self.entries.push(BindGroupEntry {
             binding: self.entries.len() as u32,
             resource: BindingResource::Sampler(sampler),
+        });
+
+        self.entries.push(BindGroupEntry {
+            binding: self.entries.len() as u32,
+            resource: BindingResource::Buffer(buffer),
         });
     }
 

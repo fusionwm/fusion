@@ -29,7 +29,7 @@ pub struct FontAtlasSet {
 }
 
 impl FontAtlasSet {
-    pub fn get_atlas(&mut self, size: u32) -> &mut FontAtlas {
+    pub fn get_mut_atlas(&mut self, size: u32) -> &mut FontAtlas {
         self.inner.entry(size).or_insert(FontAtlas::new())
     }
 }
@@ -109,12 +109,12 @@ impl FontAtlas {
         data
     }
 
-    pub fn get_or_add_material(&mut self, gpu: &Gpu) -> &Material {
+    pub fn get_or_add_mut_material(&mut self, gpu: &Gpu) -> &mut Material {
         if self.material.is_none() || self.recreate_material {
             self.create_material(gpu);
             self.recreate_material = false;
         }
-        self.material.as_ref().unwrap()
+        self.material.as_mut().unwrap()
     }
 
     fn create_material(&mut self, gpu: &Gpu) {
@@ -154,7 +154,7 @@ impl TypedResourceLoader for FontLoader {
         let inner = fontdue::Font::from_bytes(bytes, FontSettings::default())?;
         let font = Font {
             inner,
-            atlases: HashMap::new(),
+            set: FontAtlasSet::default(),
         };
         Ok(Box::new(font))
     }
@@ -171,8 +171,14 @@ impl ResourceLoader for FontLoader {
 }
 
 pub struct Font {
-    inner: fontdue::Font,
-    atlases: HashMap<String, FontAtlasSet>,
+    pub(crate) inner: fontdue::Font,
+    set: FontAtlasSet,
+}
+
+impl Font {
+    pub fn get_mut_font_atlas(&mut self, size: u32) -> &mut FontAtlas {
+        self.set.get_mut_atlas(size)
+    }
 }
 
 impl_resource!(Font, (), FontLoader);

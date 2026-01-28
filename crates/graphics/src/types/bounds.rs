@@ -37,7 +37,7 @@ impl Spacing {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct Bounds {
     pub position: Vec2,
     pub size: Vec2,

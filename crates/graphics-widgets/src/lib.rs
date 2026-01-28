@@ -3,6 +3,7 @@
 pub mod button;
 pub mod image;
 pub mod row;
+pub mod slider;
 pub mod text;
 pub mod timer;
 

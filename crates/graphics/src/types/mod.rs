@@ -3,6 +3,7 @@ mod bounds;
 mod color;
 mod corners;
 mod stroke;
+pub mod styling;
 mod texture;
 
 pub use border::*;

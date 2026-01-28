@@ -57,6 +57,10 @@ pub trait Context: Send + Sync + Default + Sized + 'static {
     fn execute(&self, content: &mut ContentManager);
 }
 
+impl Context for () {
+    fn execute(&self, content: &mut ContentManager) {}
+}
+
 pub struct Sender<C: Context> {
     inner: Vec<C>,
 }

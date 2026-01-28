@@ -1,7 +1,7 @@
 use graphics::{
     commands::{CommandBuffer, DrawRectCommand, DrawTextureCommand},
     glam::Vec2,
-    types::{Argb8888, Bounds, Color, Spacing, Stroke, styling::BackgroundStyle},
+    types::{Argb8888, Bounds, Color, Corners, Spacing, Stroke, styling::BackgroundStyle},
     widget::{Anchor, Context, DesiredSize, FrameContext, Widget},
 };
 use graphics_derive::Queryable;
@@ -19,6 +19,7 @@ enum ButtonFsm {
 pub struct ButtonStyle {
     pub background: BackgroundStyle,
     pub stroke: Stroke,
+    pub corners: Corners,
 }
 
 #[derive(Default)]
@@ -48,7 +49,7 @@ pub enum Alignment {
 }
 
 #[derive(Queryable)]
-pub struct Button<C, CB = ButtonMock>
+pub struct Button<C = (), CB = ButtonMock>
 where
     C: Context,
     CB: ButtonCallbacks<C>,
@@ -62,7 +63,7 @@ where
     pub padding: Spacing,
     pub anchor: Anchor,
 
-    rect: Bounds,
+    bounds: Bounds,
     state: ButtonFsm,
 
     callbacks: CB,
@@ -96,6 +97,7 @@ where
                     color: [Argb8888::DARK_GRAY; 4],
                     width: 1.0,
                 },
+                corners: Corners::DEFAULT,
             },
             hover: ButtonStyle {
                 background: BackgroundStyle::Color(Color::Simple(Argb8888::new(
@@ -105,6 +107,7 @@ where
                     color: [Argb8888::BLUE; 4],
                     width: 1.0,
                 },
+                corners: Corners::DEFAULT,
             },
             pressed: ButtonStyle {
                 background: BackgroundStyle::Color(Color::Simple(Argb8888::GRAY)),
@@ -112,10 +115,11 @@ where
                     color: [Argb8888::DARK_GRAY; 4],
                     width: 1.0,
                 },
+                corners: Corners::DEFAULT,
             },
             content: None,
             callbacks: CB::default(),
-            rect: Bounds::ZERO,
+            bounds: Bounds::ZERO,
             state: ButtonFsm::Normal,
             alignment: Alignment::Center,
             anchor: Anchor::Left,
@@ -151,6 +155,10 @@ where
             None => None,
         }
     }
+
+    pub fn bounds(&self) -> Bounds {
+        self.bounds
+    }
 }
 
 impl<C, CB> Widget for Button<C, CB>
@@ -174,21 +182,24 @@ where
         };
         match &style.background {
             BackgroundStyle::Color(color) => out.push(DrawRectCommand::new(
-                self.rect.clone(),
+                self.bounds,
                 color.clone(),
                 style.stroke.clone(),
+                style.corners,
             )),
             BackgroundStyle::Texture(texture) => out.push(DrawTextureCommand::new(
-                self.rect.clone(),
+                self.bounds,
                 texture.clone(),
                 style.stroke.clone(),
+                style.corners,
             )),
         }
         self.content.draw(out);
     }
 
     fn layout(&mut self, bounds: Bounds) {
-        self.rect = bounds.clone();
+        //println!("Bounds: {:#?}", bounds);
+        self.bounds = bounds.clone();
 
         let content_size = match self.content.desired_size() {
             DesiredSize::Exact(min) => Vec2::new(
@@ -214,25 +225,25 @@ where
 
         let content_x = match self.alignment {
             Alignment::TopLeft | Alignment::CenterLeft | Alignment::BottomLeft => {
-                self.rect.position.x + self.padding.left
+                self.bounds.position.x + self.padding.left
             }
             Alignment::TopCenter | Alignment::Center | Alignment::BottomCenter => {
-                self.rect.position.x + (self.size.x - content_size.x) / 2.0
+                self.bounds.position.x + (self.size.x - content_size.x) / 2.0
             }
             Alignment::TopRight | Alignment::CenterRight | Alignment::BottomRight => {
-                self.rect.position.x + self.size.x - content_size.x - self.padding.right
+                self.bounds.position.x + self.size.x - content_size.x - self.padding.right
             }
         };
 
         let content_y = match self.alignment {
             Alignment::TopLeft | Alignment::TopCenter | Alignment::TopRight => {
-                self.rect.position.y + self.padding.top
+                self.bounds.position.y + self.padding.top
             }
             Alignment::CenterLeft | Alignment::Center | Alignment::CenterRight => {
-                self.rect.position.y + (self.size.y - content_size.y) / 2.0
+                self.bounds.position.y + (self.size.y - content_size.y) / 2.0
             }
             Alignment::BottomLeft | Alignment::BottomCenter | Alignment::BottomRight => {
-                self.rect.position.y + self.size.y - content_size.y - self.padding.bottom
+                self.bounds.position.y + self.size.y - content_size.y - self.padding.bottom
             }
         };
 
@@ -245,7 +256,7 @@ where
     }
 
     fn update(&mut self, ctx: &FrameContext) {
-        let is_inside = self.rect.contains(ctx.position());
+        let is_inside = self.bounds.contains(ctx.position());
         let is_pressed = ctx.buttons().left();
         match self.state {
             ButtonFsm::Normal => {

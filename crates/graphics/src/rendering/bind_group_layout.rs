@@ -1,6 +1,7 @@
 use wgpu::{
-    BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Device,
-    SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension,
+    BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
+    BufferBindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
+    TextureViewDimension,
 };
 
 pub struct BindGroupLayoutBuilder<'a> {
@@ -36,6 +37,17 @@ impl<'a> BindGroupLayoutBuilder<'a> {
             binding: self.entries.len() as u32,
             visibility: ShaderStages::FRAGMENT,
             ty: BindingType::Sampler(SamplerBindingType::Filtering),
+            count: None,
+        });
+
+        self.entries.push(BindGroupLayoutEntry {
+            binding: self.entries.len() as u32,
+            visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
             count: None,
         });
     }

@@ -9,10 +9,7 @@ pub struct Stroke {
 
 impl Default for Stroke {
     fn default() -> Self {
-        Self {
-            color: [Argb8888::GRAY; 4],
-            width: 1.0,
-        }
+        Self::DEFAULT
     }
 }
 
@@ -20,5 +17,10 @@ impl Stroke {
     pub const NONE: Stroke = Self {
         color: [Argb8888::TRANSPARENT; 4],
         width: 0.0,
+    };
+
+    pub const DEFAULT: Stroke = Self {
+        color: [Argb8888::GRAY; 4],
+        width: 1.0,
     };
 }

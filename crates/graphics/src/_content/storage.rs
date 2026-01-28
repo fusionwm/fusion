@@ -59,3 +59,13 @@ impl<R: Resource> ResourceStorage for TypedResourceStorage<R> {
         self
     }
 }
+
+impl<R: Resource> TypedResourceStorage<R> {
+    pub fn get_resource(&self, id: ResourceID) -> Option<&R> {
+        self.resources.get(id)
+    }
+
+    pub fn get_mut_resource(&mut self, id: ResourceID) -> Option<&mut R> {
+        self.resources.get_mut(id)
+    }
+}

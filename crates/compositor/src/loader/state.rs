@@ -106,7 +106,6 @@ impl<B: Backend + 'static> CompositorHandler for LoaderState<B> {
     }
 
     fn commit(&mut self, surface: &WlSurface) {
-        println!("[{:?}] Commit start", std::time::Instant::now());
         on_commit_buffer_handler::<Self>(surface);
         if !is_sync_subsurface(surface) {
             let mut root = surface.clone();
@@ -235,7 +234,6 @@ pub fn handle_layer_shell_commit(space: &Space<Window>, surface: &WlSurface) {
         });
 
         if !initial_configure_send {
-            println!("[{:?}] Send configure", std::time::Instant::now());
             layer.layer_surface().send_configure();
         }
     }
@@ -304,11 +302,6 @@ impl<B: Backend + 'static> WlrLayerShellHandler for LoaderState<B> {
         let mut map = layer_map_for_output(&output);
         map.map_layer(&LayerSurface::new(surface, namespace))
             .unwrap();
-
-        println!(
-            "[{:?}] New layer surface created",
-            std::time::Instant::now()
-        );
     }
 
     fn layer_destroyed(&mut self, surface: WlrLayerSurface) {

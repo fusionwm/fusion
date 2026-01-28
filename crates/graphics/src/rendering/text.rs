@@ -1,6 +1,6 @@
 use crate::rendering::{
-    material::{Material, MaterialDescriptor},
     Gpu,
+    material::{Material, MaterialDescriptor},
 };
 use fontdue::{Font, Metrics};
 use glam::Vec4;
@@ -16,6 +16,12 @@ pub struct FontAtlasSet {
 impl FontAtlasSet {
     pub fn get_atlas(&mut self, size: u32) -> &mut FontAtlas {
         self.inner.entry(size).or_insert(FontAtlas::new())
+    }
+
+    pub fn clear_storage_buffers(&mut self) {
+        for atlas in self.inner.values_mut() {
+            atlas.clear_storage_buffers();
+        }
     }
 }
 
@@ -108,6 +114,14 @@ impl FontAtlas {
         self.material.as_ref().unwrap()
     }
 
+    pub fn get_mut_or_add_material(&mut self, gpu: &Gpu) -> &mut Material {
+        if self.material.is_none() || self.recreate_material {
+            self.create_material(gpu);
+            self.recreate_material = false;
+        }
+        self.material.as_mut().unwrap()
+    }
+
     fn create_material(&mut self, gpu: &Gpu) {
         self.material = Some(Material::from_pixels(
             &MaterialDescriptor {
@@ -121,5 +135,11 @@ impl FontAtlas {
             &gpu.device,
             &gpu.queue,
         ));
+    }
+
+    pub fn clear_storage_buffers(&mut self) {
+        if let Some(material) = self.material.as_mut() {
+            material.clear_storage_buffer();
+        }
     }
 }

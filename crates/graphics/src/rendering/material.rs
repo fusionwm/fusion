@@ -1,11 +1,16 @@
-use crate::{error::Error, rendering::bind_group::BindGroupBuilder};
+use crate::{
+    error::Error,
+    rendering::{
+        Gpu, bind_group::BindGroupBuilder, bind_group_layout::BindGroupLayoutBuilder,
+        instance::InstanceData,
+    },
+};
 use image::GenericImageView;
 use wgpu::{
-    AddressMode, BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Device,
-    Extent3d, FilterMode, Origin3d, Queue, SamplerBindingType, SamplerDescriptor, ShaderStages,
-    TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
-    TextureViewDimension,
+    AddressMode, BindGroup, Buffer, BufferDescriptor, Device, Extent3d, FilterMode, Origin3d,
+    Queue, RenderPass, SamplerDescriptor, TexelCopyBufferLayout, TexelCopyTextureInfo,
+    TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+    TextureViewDescriptor,
 };
 
 pub struct MaterialDescriptor<'a> {
@@ -19,14 +24,17 @@ pub struct MaterialDescriptor<'a> {
 
 pub struct Material {
     pub bind_group: BindGroup,
+    pub instances: Vec<InstanceData>,
+    wgpu_buffer: Buffer,
+    wgpu_buffer_len: usize,
+
+    drawn: u32,
 }
 
+const MAX_INSTANCES: usize = 2048;
+
 impl Material {
-    pub(crate) fn from_pixels(
-        desc: &MaterialDescriptor,
-        device: &Device,
-        queue: &Queue,
-    ) -> Self {
+    pub(crate) fn from_pixels(desc: &MaterialDescriptor, device: &Device, queue: &Queue) -> Self {
         let texture_size = Extent3d {
             width: desc.size.0,
             height: desc.size.1,
@@ -55,7 +63,7 @@ impl Material {
             desc.pixels,
             TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(desc.size.0 * 4),
+                bytes_per_row: Some(desc.size.0 * 4), //TODO: fix unknown format
                 rows_per_image: Some(desc.size.1),
             },
             texture_size,
@@ -72,34 +80,31 @@ impl Material {
         };
         let sampler = device.create_sampler(&sampler_descriptor);
 
-        let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Material"),
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
+        let buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Storage Buffer"),
+            size: (MAX_INSTANCES * size_of::<InstanceData>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
         });
+
+        let mut layout_builder = BindGroupLayoutBuilder::new(device);
+        layout_builder.add_material();
+        let layout = layout_builder.build("Material");
 
         let mut builder = BindGroupBuilder::new(device);
         builder.set_layout(&layout);
-        builder.add_material(&view, &sampler);
+        builder.add_material(&view, &sampler, buffer.as_entire_buffer_binding());
         let bind_group = builder.build(desc.label);
 
-        Material { bind_group }
+        Material {
+            bind_group,
+            instances: vec![],
+            wgpu_buffer: buffer,
+            wgpu_buffer_len: MAX_INSTANCES,
+            drawn: 0,
+        }
     }
 
     pub(crate) fn from_rgba_pixels(
@@ -134,5 +139,49 @@ impl Material {
         Ok(Self::from_rgba_pixels(
             "texture", &converted, size, device, queue,
         ))
+    }
+
+    pub fn push(&mut self, instance: InstanceData) {
+        self.instances.push(instance);
+    }
+
+    fn create_storage_buffer(&mut self, gpu: &Gpu, size: usize) {
+        let buffer = gpu.device.create_buffer(&BufferDescriptor {
+            label: Some("Storage Buffer"),
+            size: (size * size_of::<InstanceData>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
+
+        self.wgpu_buffer = buffer;
+        self.wgpu_buffer_len = size;
+    }
+
+    pub(crate) fn resize_buffer_if_needed(&mut self, gpu: &Gpu, renderpass: &mut RenderPass) {
+        if self.instances.capacity() > self.wgpu_buffer_len {
+            self.create_storage_buffer(gpu, self.instances.capacity());
+            //renderpass.set_vertex_buffer(1, self.wgpu_buffer.slice(..));
+        }
+    }
+
+    pub(crate) fn write_instance_buffer(&self, gpu: &Gpu) {
+        gpu.queue
+            .write_buffer(&self.wgpu_buffer, 0, bytemuck::cast_slice(&self.instances));
+    }
+
+    pub fn draw_instances(&mut self, gpu: &Gpu, renderpass: &mut RenderPass, count: u32) {
+        self.resize_buffer_if_needed(gpu, renderpass);
+        self.write_instance_buffer(gpu);
+        renderpass.set_bind_group(0, &self.bind_group, &[]);
+        renderpass.set_vertex_buffer(1, self.wgpu_buffer.slice(..));
+        renderpass.draw_indexed(0..6, 0, self.drawn..self.drawn + count);
+        self.drawn += count;
+    }
+
+    pub fn clear_storage_buffer(&mut self) {
+        self.drawn = 0;
+        self.instances.clear();
     }
 }

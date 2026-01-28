@@ -97,7 +97,7 @@ impl InternalClient {
         };
 
         let gpu = Rc::new(gpu);
-        let content = ContentManager::new(gpu.clone());
+        let content = ContentManager::default();
 
         Ok(Self {
             app: graphics,
