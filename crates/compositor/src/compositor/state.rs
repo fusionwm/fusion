@@ -167,6 +167,56 @@ impl<B: Backend> App<B> {
             state.geometry = state.positioner.get_unconstrained_geometry(target);
         });
     }
+
+    fn rearrange_windows(&mut self) {
+        let all_windows: Vec<_> = self.space.elements().cloned().collect();
+        let count = all_windows.len();
+        if count == 0 {
+            return;
+        }
+
+        // 1. Берем первый попавшийся output из пространства
+        let (screen_width, screen_height) = if let Some(output) = self.space.outputs().next() {
+            // 2. Получаем текущее состояние (resolution, scale и т.д.)
+            let current_mode = output.current_mode().expect("Output has no mode set");
+
+            // Физическое разрешение (например, 1920x1080)
+            let physical_size = current_mode.size;
+
+            // 3. Чтобы тайлинг работал корректно с HiDPI, лучше брать логический размер
+            let geometry = self
+                .space
+                .output_geometry(output)
+                .expect("Output not in space");
+            let screen_width = geometry.size.w;
+            let screen_height = geometry.size.h;
+
+            //println!("Размер экрана: {}x{}", screen_width, screen_height);
+            // Допустим, мы делим экран вертикально на равные части
+            (screen_width, screen_height)
+        } else {
+            panic!("TODO!")
+        };
+
+        let width_per_window = screen_width / count as i32;
+        println!("Width per window: {width_per_window}");
+
+        for (i, window) in all_windows.into_iter().enumerate() {
+            let x_pos = i as i32 * width_per_window;
+            let y_pos = 0;
+
+            // Обновляем позицию окна
+            self.space.map_element(window.clone(), (x_pos, y_pos), true);
+
+            // ВАЖНО: Отправляем клиенту команду изменить размер самого окна!
+            // Без этого приложение будет думать, что оно все еще 0x0 или другого размера.
+            let surface = window.toplevel().unwrap();
+            surface.with_pending_state(|state| {
+                state.size = Some((width_per_window, 1080).into());
+            });
+            surface.send_configure();
+        }
+    }
 }
 
 delegate_seat!(@<B: Backend + 'static> App<B>);
@@ -235,7 +285,8 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let window = Window::new_wayland_window(surface);
-        self.space.map_element(window, (100, 100), false);
+        self.space.map_element(window, (0, 0), false);
+        self.rearrange_windows();
     }
 
     fn new_popup(&mut self, surface: PopupSurface, _positioner: PositionerState) {
@@ -260,7 +311,6 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
 
     fn move_request(&mut self, surface: ToplevelSurface, seat: WlSeat, serial: Serial) {
         let seat = Seat::from_resource(&seat).unwrap();
-
         let wl_surface = surface.wl_surface();
 
         if let Some(start_data) = check_grab(&seat, wl_surface, serial) {

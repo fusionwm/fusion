@@ -36,18 +36,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Client::start();
     setup_logging();
 
-    let mut event_loop: EventLoop<LoaderLoopData<WinitBackend>> = EventLoop::try_new()?;
-    let backend = WinitBackend::new().unwrap();
-    let mut loader_data = init_loader(&event_loop, backend)?;
+    //let mut event_loop: EventLoop<LoaderLoopData<WinitBackend>> = EventLoop::try_new()?;
+    //let backend = WinitBackend::new().unwrap();
+    //let mut loader_data = init_loader(&event_loop, backend)?;
 
-    event_loop.run(None, &mut loader_data, |_| {})?;
+    //event_loop.run(None, &mut loader_data, |_| {})?;
 
     // Используем EventLoop для обработки событий от разных источников
-    //let mut event_loop: EventLoop<data::Data<WinitBackend>> = EventLoop::try_new()?;
+    let mut event_loop: EventLoop<compositor::data::Data<WinitBackend>> = EventLoop::try_new()?;
 
-    //let backend = WinitBackend::new().unwrap();
-    //let mut data = init_compositor(&event_loop, backend)?;
-    //event_loop.run(None, &mut data, |_| {})?;
+    let backend = WinitBackend::new().unwrap();
+    let mut data = compositor::init_compositor(&event_loop, backend)?;
+    event_loop.run(None, &mut data, |_| {})?;
 
     Ok(())
 }
