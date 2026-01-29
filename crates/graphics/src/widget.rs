@@ -62,7 +62,7 @@ pub trait Context: Send + Sync + Default + Sized + 'static {
 }
 
 impl Context for () {
-    fn execute(&self, content: &mut ContentManager) {}
+    fn execute(&self, _: &mut ContentManager) {}
 }
 
 pub struct Sender<C: Context> {
@@ -138,7 +138,7 @@ impl Widget for Empty {
         Anchor::default()
     }
 
-    fn draw<'frame, 'theme>(&'frame self, _: &'theme StyleSheet, _: &mut CommandBuffer<'frame>) {}
+    fn draw<'frame>(&'frame self, _: &StyleSheet, _: &mut CommandBuffer<'frame>) {}
     fn layout(&mut self, _: Bounds) {}
     fn update(&mut self, _: &FrameContext) {}
 }

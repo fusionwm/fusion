@@ -255,6 +255,11 @@ where
     }
 
     fn update(&mut self, ctx: &FrameContext) {
+        println!(
+            "Button update: {:?}, Buttons: {:?}",
+            self.state,
+            ctx.buttons()
+        );
         let is_inside = self.bounds.contains(ctx.position());
         let is_pressed = ctx.buttons().left();
         match self.state {

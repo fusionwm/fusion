@@ -109,7 +109,7 @@ impl<B: Backend> App<B> {
         let data_device_state = DataDeviceState::new::<Self>(dh);
 
         // Создаём новый Seat из состояния Seat и передаём ему имя.
-        let mut seat: Seat<Self> = seat_state.new_wl_seat(dh, "nethalym_wm");
+        let mut seat: Seat<Self> = seat_state.new_wl_seat(dh, "fusion_wm");
 
         // Добавляем клавиатуру с частоток повтора и задержкой в миллисекундах.
         // Повтор - время повтора, задержка - как должно нужно ждать перез следующим повтором

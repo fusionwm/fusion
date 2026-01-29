@@ -74,8 +74,10 @@ impl<B: Backend + 'static> LoaderState<B> {
         let space = Space::<Window>::default();
         let wlr_layer_shell_state = WlrLayerShellState::new::<Self>(dh);
 
-        let mut seat: Seat<Self> = seat_state.new_wl_seat(dh, "nethalym_wm_loader");
+        let mut seat: Seat<Self> = seat_state.new_wl_seat(dh, "wm_loader");
         seat.add_keyboard(XkbConfig::default(), 500, 500).unwrap();
+        // Добавляем указатель (мышь, тачпад и т.д.)
+        let pointer_handle = seat.add_pointer();
 
         seat.add_pointer();
 

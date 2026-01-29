@@ -4,8 +4,6 @@ use derive_more::From;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
-use lasso::Rodeo;
-
 use crate::types::{Argb8888, Color, Corners, Stroke, Texture};
 
 pub struct Themes {
@@ -67,25 +65,7 @@ macro_rules! map {
     }};
 }
 
-/*
-out.push(DrawRectCommand {
-    rect: ctx.bounds,
-    color: Argb8888::new(240, 240, 240, 255).into(),
-    stroke: Stroke {
-        color: [
-            Argb8888::new(150, 150, 150, 255),
-            Argb8888::new(150, 150, 150, 255),
-            Argb8888::new(150, 150, 150, 255),
-            Argb8888::new(150, 150, 150, 255),
-        ],
-        width: 1.0,
-    },
-    corners: Corners::NONE,
-});
-*/
-
 lazy_static! {
-    static ref INTERNER: Rodeo = Rodeo::new();
     pub static ref AERO_THEME: StyleSheet = {
         StyleSheet {
             inner: map![
