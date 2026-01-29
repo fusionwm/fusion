@@ -30,7 +30,6 @@ pub mod reexports {
 use crate::{
     graphics::Graphics,
     rendering::{Gpu, Renderer},
-    types::styling::StyleSheet,
     widget::{FrameContext, Widget},
     window::{Window, WindowPointer, WindowRequest},
 };
@@ -157,8 +156,7 @@ impl InternalClient {
                 continue;
             }
 
-            let stylesheet = StyleSheet::default();
-            let mut commands = app.tick_render_frontend(&stylesheet, &self.content, i);
+            let mut commands = app.tick_render_frontend(&self.content, i);
             window.renderer.render(
                 &self.gpu,
                 &window.surface,

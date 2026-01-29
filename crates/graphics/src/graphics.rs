@@ -1,10 +1,7 @@
 use crate::{
     ContentManager, WindowHandle,
     commands::CommandBuffer,
-    types::{
-        Bounds,
-        styling::{AERO_THEME, StyleSheet},
-    },
+    types::{Bounds, styling::AERO_THEME},
     widget::FrameContext,
 };
 use glam::Vec2;
@@ -76,7 +73,6 @@ impl Graphics {
 
     pub(crate) fn tick_render_frontend<'frame>(
         &'frame mut self,
-        stylesheet: &'frame StyleSheet,
         content: &'frame ContentManager,
         index: usize,
     ) -> CommandBuffer<'frame> {
