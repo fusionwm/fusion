@@ -2,33 +2,12 @@ pub mod general;
 pub mod graphics;
 pub mod net;
 pub mod system;
+pub mod window;
 
-use crate::{
-    capabilities::{
-        general::log::{nms_log_debug, nms_log_error, nms_log_info, nms_log_warn},
-        graphics::{create_window, destroy_window},
-        net::{
-            http::{
-                net_http_request, net_http_request_done, net_http_send_request,
-                net_http_set_method, net_http_set_uri, net_http_start_client,
-            },
-            socket::{
-                tcp::{
-                    net_socket_tcp_connect, net_socket_tcp_create, net_socket_tcp_recv,
-                    net_socket_tcp_send, net_socket_tcp_shutdown,
-                },
-                udp::{
-                    net_socket_udp_connect, net_socket_udp_create, net_socket_udp_recv,
-                    net_socket_udp_send, net_socket_udp_shutdown,
-                },
-            },
-        },
-        system::audio::{nms_audio_mute, nms_audio_set_volume},
-    },
-    context::ExecutionContext,
-    ffi::{FfiValue, ModuleAllocator},
-};
-use wasmtime::{Caller, Extern, Func, ImportType, Store};
+use crate::capabilities::general::Plugin;
+use crate::context::ExecutionContext;
+use wasmtime::component::Linker;
+use wasmtime::{Caller, Extern};
 
 fn read_wasm_memory_slice<'a>(
     caller: &'a mut Caller<'_, ExecutionContext>,
@@ -42,14 +21,6 @@ fn read_wasm_memory_slice<'a>(
     let mem = memory.data(caller);
     let offset = ptr as usize;
     &mem[offset..offset + length as usize]
-}
-
-fn get_wasm_memory<'a>(caller: &'a mut Caller<'_, ExecutionContext>) -> &'a [u8] {
-    let memory = caller
-        .get_export("memory")
-        .and_then(Extern::into_memory)
-        .expect("Memory export not found");
-    memory.data(caller)
 }
 
 fn read_wasm_string<'a>(caller: &'a mut Caller<'_, ExecutionContext>, ptr: i32) -> &'a str {
@@ -77,60 +48,23 @@ fn write_wasm_bytes(caller: &mut Caller<'_, ExecutionContext>, ptr: i32, data: &
     data.len() as i32
 }
 
-fn nms_config_get(store: &mut Store<ExecutionContext>) -> Func {
-    Func::wrap(
-        store,
-        |mut caller: Caller<'_, ExecutionContext>, path_ptr: i32| -> i32 {
-            let memory = caller
-                .get_export("memory")
-                .and_then(Extern::into_memory)
-                .expect("memory export not found");
+pub fn get_import(capabilities: &[String], linker: &mut Linker<ExecutionContext>) {
+    Plugin::add_to_linker::<_, ExecutionContext>(linker, |state: &mut ExecutionContext| state)
+        .unwrap();
 
-            let mem = memory.data(&caller);
-            let offset = path_ptr as usize;
-            let end = mem[offset..]
-                .iter()
-                .position(|&b| b == 0)
-                .expect("missing null terminator");
-            let slice = &mem[offset..offset + end];
-            let path = std::str::from_utf8(slice).expect("invalid UTF-8");
-
-            let config = caller.data().config();
-            let value = config.get_value(path).unwrap();
-
-            let alloc_func = caller
-                .get_export("module_alloc")
-                .and_then(Extern::into_func)
-                .unwrap();
-            let mut allocator = ModuleAllocator::new(alloc_func, &mut caller, memory);
-            let ffi_value = FfiValue::new(value, &mut allocator);
-            let ptr = allocator.alloc_bytes(&ffi_value);
-            ptr as i32
-        },
-    )
+    //for import in capabilities {
+    //    match import.as_str() {
+    //        //"general" => general_::add_to_linker::<_, ExecutionContext>(
+    //        //    linker,
+    //        //    |state: &mut ExecutionContext| state,
+    //        //)
+    //        //.unwrap(),
+    //        import => panic!("Unknown import '{import:?}'"),
+    //    }
+    //}
 }
 
-macro_rules! register_imports {
-    (
-        $import:expr,
-        $store:ident,
-        $(
-            capability: $cap:expr => {
-                $( $name:literal => $func:ident ),* $(,)?
-            }
-        )*
-    ) => {
-        match $import {
-        $(
-            $(
-                $name if has_capability($store, $cap) => $func($store),
-            )*
-        )*
-        _ => panic!("Unknown import '{:?}'", $import),
-        }.into()
-    };
-}
-
+/*
 pub fn get_imports<'module>(
     imports: impl ExactSizeIterator<Item = ImportType<'module>> + 'module,
     store: &mut Store<ExecutionContext>,
@@ -139,13 +73,6 @@ pub fn get_imports<'module>(
     imports.for_each(|import| {
         vec.push(register_imports!(
             import.name(), store,
-            capability: "general" => {
-                "nms_log_debug" => nms_log_debug,
-                "nms_log_info" => nms_log_info,
-                "nms_log_warn" => nms_log_warn,
-                "nms_log_error" => nms_log_error,
-                "nms_config_get" => nms_config_get,
-            }
             capability: "system.audio" => {
                 "nms_audio_mute" => nms_audio_mute,
                 "nms_audio_set_volume" => nms_audio_set_volume,
@@ -181,8 +108,4 @@ pub fn get_imports<'module>(
 
     vec
 }
-
-#[inline]
-fn has_capability(store: &mut Store<ExecutionContext>, capability: &str) -> bool {
-    store.data().has_capability(capability)
-}
+*/

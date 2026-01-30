@@ -1,0 +1,16 @@
+package fusion:compositor;
+
+interface window-manager {
+    record window-id {
+        inner: u32,
+    }
+
+    get-elements: func() -> list<window-id>;
+    set-window-size: func(window: window-id, w: u32, h: u32);
+    set-window-pos: func(window: window-id, x: u32, y: u32);
+}
+
+world window {
+    import window-manager;
+    export rearrange-windows: func();
+}

@@ -1,0 +1,21 @@
+package fusion:compositor;
+
+interface general {
+    debug: func(message: string);
+    info: func(message: string);
+    warn: func(message: string);
+    error: func(message: string);
+    config-get: func(path: string) -> string;
+    config-delete: func(path: string);
+}
+
+world plugin {
+    import general;
+    export init: func();
+    export tick: func();
+    export stop: func();
+
+    export heap-allocated: func() -> u64;
+    export heap-capacity: func() -> u64;
+    export heap-free: func() -> u64;
+}

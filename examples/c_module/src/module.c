@@ -1,31 +1,44 @@
-#include "allocator/heap.c"
-#include "printf/print.h"
-#include <limits.h>
-#include <fusion/ui.h>
+#include "plugin.h"
 
-void module_init() {
-    info("Module init");
-    heap_instance = o1heapInit((void*)&__heap_base, INT_MAX);
+#define debug fusion_compositor_general_debug
+#define info fusion_compositor_general_info
+#define warn fusion_compositor_general_warn
+#define error fusion_compositor_general_error
 
-    struct DesktopOptions options = {
-        .title = "C Module Example",
-        .resizable = true,
-        .decorations = true,
-    };
+void init();
+void tick();
+void stop();
 
-    struct WindowLayer layer = {
-        .type = LAYER_DESKTOP,
-        .options = options,
-    };
-
-    Window window = create_window("example", &layer, 800, 600);
-    //destroy_window(window);
+void exports_plugin_init() {
+    init();
 }
 
-void module_tick() {
-    info("Module tick");
+void exports_plugin_tick() {
+    tick();
 }
 
-void module_stop() {
-    info("Module stopped");
+void exports_plugin_stop() {
+    stop();
 }
+
+uint64_t exports_plugin_heap_allocated() {
+    return 0;
+}
+
+uint64_t exports_plugin_heap_capacity() {
+    return 0;
+}
+
+uint64_t exports_plugin_heap_free() {
+    return 0;
+}
+
+void init() {
+    plugin_string_t str;
+    plugin_string_set(&str, "Hello, world!");
+
+    info(&str);
+}
+
+void tick() {}
+void stop() {}

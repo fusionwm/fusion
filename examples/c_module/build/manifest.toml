@@ -7,7 +7,7 @@ authors = [
 ]
 
 #capabilities = ["general.graphics", "net.socket.tcp", "net.socket.udp"]
-capabilities = ["general.graphics"]
+#capabilities = ["general.graphics"]
 
 #custom = ["message", "test"]
 

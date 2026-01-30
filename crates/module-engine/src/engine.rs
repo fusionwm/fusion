@@ -4,17 +4,17 @@ use std::{
 };
 
 use crate::{
-    capabilities::get_imports,
+    capabilities::{general::Plugin, get_import},
     context::ExecutionContext,
     loader::{ModuleLoader, PackedModule},
     manifest::Manifest,
-    stdlib::StandardLibrary,
     table::CapabilityTable,
 };
 use graphics::graphics::Graphics;
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::sync::Mutex as TokioMutex;
-use wasmtime::{Engine, Instance, Memory, Module, Store};
+use wasmtime::component::{Component, Linker};
+use wasmtime::{Engine, Store};
 
 fn ensure_directory_exists() {
     let root = dirs::config_dir().unwrap().join("nethalym");
@@ -80,7 +80,7 @@ impl ModuleEngine {
     }
 
     fn prepare_module(&mut self, packed: PackedModule) -> Result<(), Box<dyn std::error::Error>> {
-        info!("[{}] Preparing module", packed.manifest.name());
+        log::warn!("[{}] Preparing module", packed.manifest.name());
 
         let log_file = dirs::config_dir()
             .unwrap()
@@ -95,20 +95,16 @@ impl ModuleEngine {
             packed.manifest.capabilities(),
         );
         let mut store = Store::new(&self.engine, context);
-        let module = Module::from_binary(&self.engine, &packed.module)?;
+        let mut linker = Linker::<ExecutionContext>::new(&self.engine);
+        log::warn!("0");
+        get_import(packed.manifest.capabilities(), &mut linker);
+        log::warn!("1");
+        let component = Component::from_binary(&self.engine, &packed.module)?;
+        log::warn!("2");
 
-        let imports = get_imports(module.imports(), &mut store);
-        let instance = Instance::new(&mut store, &module, &imports)?;
+        let general = Plugin::instantiate(&mut store, &component, &linker)?;
+        log::warn!("3");
 
-        let mem = instance
-            .get_export(&mut store, "memory")
-            .unwrap()
-            .into_memory()
-            .unwrap();
-
-        mem.grow(&mut store, 2048)?; // 128 MB
-
-        let stdlib = StandardLibrary::new(&instance, &mut store)?;
         let manifest = packed.manifest;
         let path = packed.path;
 
@@ -116,8 +112,7 @@ impl ModuleEngine {
             path,
             manifest,
             store,
-            instance,
-            stdlib,
+            general,
         });
 
         Ok(())
@@ -131,7 +126,7 @@ impl ModuleEngine {
         };
 
         for module in modules {
-            println!("[Engine] Loading module: {}", module.manifest.name());
+            debug!("[Engine] Loading module: {}", module.manifest.name());
             let path = module.path.clone();
             let manifest = module.manifest.clone();
 
@@ -164,60 +159,12 @@ impl ModuleEngine {
                     err
                 );
 
-                if module.is_support_restore() {
-                    match module.get_restore_state() {
-                        Err(err) => {
-                            error!(
-                                "[{}] Failed to create restore state: {}",
-                                module.manifest.name(),
-                                err
-                            );
-                            self.failed.push(FailedModule {
-                                path: module.path.clone(),
-                                manifest: module.manifest.clone(),
-                            });
-                            keep = false;
-                        }
-                        Ok(state) => {
-                            if state.len() < 4 {
-                                error!(
-                                    "[{}] Failed to restore module: Invalid state length",
-                                    module.manifest.name()
-                                );
-                                self.failed.push(FailedModule {
-                                    path: module.path.clone(),
-                                    manifest: module.manifest.clone(),
-                                });
-                                keep = false;
-                            } else if let Err(err) = module.restore(state) {
-                                error!(
-                                    "[{}] Failed to restore module: {}",
-                                    module.manifest.name(),
-                                    err
-                                );
-                                self.failed.push(FailedModule {
-                                    path: module.path.clone(),
-                                    manifest: module.manifest.clone(),
-                                });
-                                keep = false;
-                            } else {
-                                info!("[{}] Module restored successfully", module.manifest.name());
-                            }
-                        }
-                    }
-                } else {
-                    error!(
-                        "[{}] Module does not support restore",
-                        module.manifest.name()
-                    );
+                self.failed.push(FailedModule {
+                    path: module.path.clone(),
+                    manifest: module.manifest.clone(),
+                });
 
-                    self.failed.push(FailedModule {
-                        path: module.path.clone(),
-                        manifest: module.manifest.clone(),
-                    });
-
-                    keep = false;
-                }
+                keep = false;
             }
 
             if keep {
@@ -314,68 +261,44 @@ pub struct ModuleWorkspace {
     path: String,
     manifest: Manifest,
     store: Store<ExecutionContext>,
-    instance: Instance,
-    stdlib: StandardLibrary,
+    general: Plugin,
 }
 
 impl ModuleWorkspace {
+    #[must_use]
     pub const fn new(
         path: String,
         manifest: Manifest,
         store: Store<ExecutionContext>,
-        instance: Instance,
-        stdlib: StandardLibrary,
+        general: Plugin,
     ) -> Self {
         ModuleWorkspace {
             path,
             manifest,
             store,
-            instance,
-            stdlib,
+            general,
         }
     }
 
+    #[must_use]
     pub const fn manifest(&self) -> &Manifest {
         &self.manifest
     }
 
     pub fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("[{}] Initializing module", self.manifest.name());
-        self.stdlib.init(&mut self.store)?;
+        self.general.call_init(&mut self.store)?;
         Ok(())
     }
 
     pub fn tick(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.stdlib.tick(&mut self.store)?;
+        self.general.call_tick(&mut self.store)?;
         Ok(())
     }
 
     pub fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.stdlib.stop(&mut self.store)?;
+        self.general.call_stop(&mut self.store)?;
         Ok(())
-    }
-
-    pub fn is_support_restore(&self) -> bool {
-        self.stdlib.is_support_restore()
-    }
-
-    pub fn get_restore_state(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        debug_assert!(self.is_support_restore());
-        let memory = self.get_memory();
-        self.stdlib.get_restore_state(memory, &mut self.store)
-    }
-
-    pub fn restore(&mut self, state: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        let memory = self.get_memory();
-        self.stdlib.restore(&mut self.store, memory, state)
-    }
-
-    fn get_memory(&mut self) -> Memory {
-        self.instance
-            .get_export(&mut self.store, "memory")
-            .unwrap()
-            .into_memory()
-            .unwrap()
     }
 }
 

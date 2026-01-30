@@ -46,14 +46,17 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    #[must_use]
     pub const fn name(&self) -> &str {
         self.name.as_str()
     }
 
+    #[must_use]
     pub fn custom_capabilities(&self) -> Option<&[String]> {
         self.custom.as_deref()
     }
 
+    #[must_use]
     pub fn capabilities(&self) -> &[String] {
         self.capabilities.as_deref().unwrap_or_default()
     }
