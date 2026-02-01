@@ -6,7 +6,8 @@ use crate::{
 };
 
 wit_bindgen::generate!({
-    path: "wit-fusion",
+    path: "../../specs/compositor",
+    world: "compositor",
 });
 
 impl Guest for crate::Example {

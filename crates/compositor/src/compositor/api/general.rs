@@ -13,7 +13,10 @@ use crate::compositor::api::{
     general::fusion::compositor::window_manager::{self, WindowId},
 };
 
-bindgen!("compositor");
+bindgen!({
+    path: "../../specs/compositor",
+    world: "compositor",
+});
 
 pub struct GeneralCapabilityProvider;
 impl CapabilityProvider for GeneralCapabilityProvider {
