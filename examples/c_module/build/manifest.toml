@@ -7,9 +7,7 @@ authors = [
 ]
 
 #capabilities = ["general.graphics", "net.socket.tcp", "net.socket.udp"]
-#capabilities = ["general.graphics"]
-
-#custom = ["message", "test"]
+capabilities = ["compositor.window"]
 
 [errors]
 0 = {name = "I/O Error", description = "Description"}

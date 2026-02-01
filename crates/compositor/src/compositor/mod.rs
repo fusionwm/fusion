@@ -1,3 +1,4 @@
+pub mod api;
 pub mod backend;
 pub mod data;
 pub mod grabs;
@@ -120,7 +121,12 @@ pub fn init_compositor(
     // Set the prefereed mode to use.
     output.set_preferred(mode);
     // Set the output of a space with coordinates for the upper left corner of the surface.
-    data.state.space.map_output(&output, (0, 0));
+    data.state
+        .globals
+        .lock()
+        .unwrap()
+        .space
+        .map_output(&output, (0, 0));
 
     // Tracks output for damaged elements allowing for the ability to redraw only what has been damaged.
     let mut output_damage_tracker = OutputDamageTracker::from_output(&output);
@@ -162,6 +168,7 @@ pub fn init_compositor(
             }
 
             {
+                let space = &state.globals.lock().unwrap().space;
                 let (renderer, mut framebuffer) = state.backend.bind();
 
                 render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(
@@ -170,7 +177,7 @@ pub fn init_compositor(
                     &mut framebuffer,
                     1.0,
                     0,
-                    [&state.space],
+                    [space],
                     &[],
                     &mut output_damage_tracker,
                     [0.1, 0.1, 0.1, 1.0],
@@ -182,7 +189,8 @@ pub fn init_compositor(
             let damage = Rectangle::from_size(size);
             state.backend.backend().submit(Some(&[damage])).unwrap();
 
-            state.space.elements().for_each(|window| {
+            let space = &mut state.globals.lock().unwrap().space;
+            space.elements().for_each(|window| {
                 window.send_frame(
                     &output,
                     start_time.elapsed(),
@@ -191,7 +199,7 @@ pub fn init_compositor(
                 );
             });
 
-            state.space.refresh();
+            space.refresh();
 
             display.flush_clients().unwrap();
 

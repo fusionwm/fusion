@@ -60,9 +60,9 @@ pub fn create_window(store: &mut Store<ExecutionContext>) -> Func {
             let window_ptr = window.as_ref() as *const _;
 
             let data = caller.data_mut();
-            let mut graphics = data.graphics.lock().unwrap();
+            //let mut graphics = data.graphics.lock().unwrap();
 
-            graphics.add_window(window);
+            //graphics.add_window(window);
 
             window_ptr as i64
         },
@@ -81,8 +81,8 @@ pub_wasm_fn! {
    destroy_window, caller, window: i64, {
        let window = window as *const DynamicWindowRoot;
        let data = caller.data_mut();
-       let mut graphics = data.graphics.lock().unwrap();
-       graphics.destroy_window(window);
+       //let mut graphics = data.graphics.lock().unwrap();
+       //graphics.destroy_window(window);
    }
 }
 

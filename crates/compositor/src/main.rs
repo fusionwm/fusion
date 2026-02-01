@@ -9,7 +9,6 @@ use crate::{
     compositor::window::WinitBackend,
     loader::{LoaderLoopData, init_loader},
 };
-use bincode::{Decode, Encode};
 use log::LevelFilter;
 use smithay::reexports::calloop::EventLoop;
 use std::io::Write;
@@ -52,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/*
 #[derive(Debug, Clone, Encode, Decode)]
 enum SocketCommandResult {
     Done,
@@ -72,6 +72,7 @@ enum SocketCommand {
     Modules { filter: Option<ModuleListFilter> },
     ReloadModule { id: usize },
 }
+*/
 
 //TODO
 //Custom shaders

@@ -22,9 +22,12 @@ impl<B: Backend + 'static> App<B> {
         match input {
             InputEvent::PointerMotion { event } => {}
             InputEvent::PointerMotionAbsolute { event } => {
-                let output = self.space.outputs().next().unwrap();
+                let output_geo = {
+                    let space = &self.globals.lock().unwrap().space;
+                    let output = space.outputs().next().unwrap();
 
-                let output_geo = self.space.output_geometry(output).unwrap();
+                    space.output_geometry(output).unwrap()
+                };
 
                 let pos = event.position_transformed(output_geo.size) + output_geo.loc.to_f64();
 
@@ -46,6 +49,8 @@ impl<B: Backend + 'static> App<B> {
                 pointer.frame(self);
             }
             InputEvent::PointerButton { event } => {
+                let globals = self.globals.clone();
+                let mut globals = globals.lock().unwrap();
                 let pointer = self.seat.get_pointer().unwrap();
                 let keyboard = self.seat.get_keyboard().unwrap();
 
@@ -56,22 +61,22 @@ impl<B: Backend + 'static> App<B> {
                 let button_state = event.state();
 
                 if ButtonState::Pressed == button_state && !pointer.is_grabbed() {
-                    if let Some((window, _loc)) = self
+                    if let Some((window, _loc)) = globals
                         .space
                         .element_under(pointer.current_location())
                         .map(|(w, l)| (w.clone(), l))
                     {
-                        self.space.raise_element(&window, true);
+                        globals.space.raise_element(&window, true);
                         keyboard.set_focus(
                             self,
                             Some(window.toplevel().unwrap().wl_surface().clone()),
                             serial,
                         );
-                        self.space.elements().for_each(|window| {
+                        globals.space.elements().for_each(|window| {
                             window.toplevel().unwrap().send_pending_configure();
                         });
                     } else {
-                        self.space.elements().for_each(|window| {
+                        globals.space.elements().for_each(|window| {
                             window.set_activated(false);
                             window.toplevel().unwrap().send_pending_configure();
                         });
@@ -131,7 +136,8 @@ impl<B: Backend + 'static> App<B> {
         &self,
         pos: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
-        self.space
+        self.globals()
+            .space
             .element_under(pos)
             .and_then(|(window, location)| {
                 window

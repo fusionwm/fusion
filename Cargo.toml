@@ -2,12 +2,13 @@
 resolver = "3"
 members = [
     "crates/compositor",
-    "crates/ctl",
+    #"crates/ctl",
     "crates/wl_client",
     "crates/graphics",
     "crates/graphics-derive",
     "crates/graphics-widgets",
     "crates/module-engine",
+    "examples/rust",
 ]
 
 [workspace.dependencies]
@@ -17,22 +18,23 @@ thiserror = "2.0.18"
 module-engine = { path = "crates/module-engine" }
 
 ### Other
-wasmtime = { version = "40.0.3", features = ["async"] }
-toml = "0.9.8"
+wasmtime = { version = "41.0.1", features = ["async"] }
+wasmtime-wasi = { version = "41.0.1" }
+toml = "0.9.11"
 serde = { version = "1.0.228", features = ["derive"] }
-bincode = { version = "2.0.1", features = ["serde"] }
+rkyv = "0.7.46"
 zip = "7.2.0"
 notify = "8.2.0"
 tokio = { version = "1.49.0", features = ["full", "macros"] }
 dirs = "6.0.0"
 log = "0.4.29"
 env_logger = "0.11.8"
-chrono = { version = "0.4.43", features = ["serde"] }
+chrono = { version = "0.4.43", features = ["rkyv-32"] }
 bitflags = "2.10.0"
 tree-sitter = "0.26.3"
 regex = "1.12.2"
 bytemuck = { version = "1.24.0", features = ["derive"] }
-clap = { version = "4.5.55", features = ["derive"] }
+clap = { version = "4.5.56", features = ["derive"] }
 
 #Https
 http = "1.4.0"

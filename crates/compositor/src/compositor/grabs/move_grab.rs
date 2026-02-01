@@ -31,7 +31,8 @@ impl<B: Backend + 'static> PointerGrab<App<B>> for MoveSurfaceGrab<B> {
 
         let delta = event.location - self.start_data.location;
         let new_location = self.initial_window_location.to_f64() + delta;
-        data.space
+        data.globals()
+            .space
             .map_element(self.window.clone(), new_location.to_i32_round(), true);
     }
 

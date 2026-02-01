@@ -1,38 +1,37 @@
-use bincode::{Decode, Encode};
 use serde::Deserialize;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Author {
     name: String,
     email: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ModuleError {
     name: String,
     description: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum ParameterValue {
     String,
     Number,
 }
 
-#[derive(Debug, Clone, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Parameter {
     name: String,
     value: ParameterValue,
     parameters: Vec<Parameter>,
 }
 
-#[derive(Debug, Clone, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ConfigSchema {
     parameters: Vec<Parameter>,
 }
 
-#[derive(Debug, Clone, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Manifest {
     name: String,
     version: String,

@@ -1,10 +1,8 @@
-pub mod general;
 pub mod graphics;
 pub mod net;
 pub mod system;
 pub mod window;
 
-use crate::capabilities::general::Plugin;
 use crate::context::ExecutionContext;
 use wasmtime::component::Linker;
 use wasmtime::{Caller, Extern};
@@ -49,8 +47,8 @@ fn write_wasm_bytes(caller: &mut Caller<'_, ExecutionContext>, ptr: i32, data: &
 }
 
 pub fn get_import(capabilities: &[String], linker: &mut Linker<ExecutionContext>) {
-    Plugin::add_to_linker::<_, ExecutionContext>(linker, |state: &mut ExecutionContext| state)
-        .unwrap();
+    //Plugin::add_to_linker::<_, ExecutionContext>(linker, |state: &mut ExecutionContext| state)
+    //    .unwrap();
 
     //for import in capabilities {
     //    match import.as_str() {

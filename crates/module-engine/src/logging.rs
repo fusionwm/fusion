@@ -1,13 +1,13 @@
 use std::{
     fs::File,
-    io::{BufWriter, Write},
+    io::{BufWriter, Read, Write},
     path::PathBuf,
 };
 
-use bincode::{Decode, Encode};
 use chrono::{DateTime, Local};
+use rkyv::{Archive, Deserialize, Serialize};
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Archive, Deserialize, Serialize, Debug, PartialEq)]
 pub enum Level {
     Debug,
     Info,
@@ -15,9 +15,8 @@ pub enum Level {
     Error,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Archive, Deserialize, Serialize, Debug, PartialEq)]
 pub struct Entry {
-    #[bincode(with_serde)]
     time: DateTime<Local>,
     level: Level,
     message: String,
@@ -30,15 +29,17 @@ pub struct Logger {
 
 impl Logger {
     fn try_read_binary_entries(log_file: PathBuf) -> Vec<Entry> {
-        let mut entries = Vec::new();
+        return vec![];
         if log_file.exists() && log_file.metadata().is_ok_and(|m| m.len() > 0) {
             let mut file = std::fs::File::open(log_file).unwrap();
-            let config = bincode::config::standard();
-            while let Ok(entry) = bincode::decode_from_std_read(&mut file, config) {
-                entries.push(entry);
-            }
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes);
+
+            let archived = unsafe { rkyv::archived_root::<Vec<Entry>>(&bytes) };
+            archived.deserialize(&mut rkyv::Infallible).unwrap()
+        } else {
+            Vec::new()
         }
-        entries
     }
 
     fn writer(log_file: PathBuf) -> BufWriter<File> {
@@ -50,6 +51,7 @@ impl Logger {
         BufWriter::new(file)
     }
 
+    #[must_use]
     pub fn new(log_file: PathBuf) -> Self {
         Self {
             inner: Self::try_read_binary_entries(log_file.clone()),
@@ -68,8 +70,9 @@ impl Logger {
     }
 
     fn write(&mut self, entry: &Entry) {
-        let config = bincode::config::standard();
-        bincode::encode_into_std_write(entry, &mut self.writer, config).unwrap();
+        return;
+        let bytes = rkyv::to_bytes::<_, 256>(entry).unwrap();
+        self.writer.write_all(bytes.as_slice()).unwrap();
         self.writer.flush().unwrap();
     }
 }

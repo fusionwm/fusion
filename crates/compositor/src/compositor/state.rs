@@ -1,8 +1,13 @@
 #![allow(unused)]
 
-use std::sync::{Arc, Mutex};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use graphics::{InternalClient, graphics::Graphics};
+use slotmap::SlotMap;
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
     delegate_compositor, delegate_data_device, delegate_output, delegate_seat, delegate_shm,
@@ -48,11 +53,19 @@ use wayland_server::{
 
 use crate::compositor::{
     ClientState,
+    api::{
+        CompositorContext, CompositorContextFactory, CompositorGlobals, UnsafeCompositorGlobals,
+        general::{Compositor, GeneralCapabilityProvider},
+    },
     backend::Backend,
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
 };
 
-use module_engine::{engine::ModuleEngine, loader::ModuleLoader};
+use module_engine::{
+    engine::{InnerContextFactory, ModuleEngine},
+    loader::ModuleLoader,
+    table::CapabilityWriteRules,
+};
 
 pub struct App<B: Backend + 'static> {
     pub compositor_state: CompositorState,
@@ -60,7 +73,6 @@ pub struct App<B: Backend + 'static> {
     pub seat_state: SeatState<Self>,
     pub seat: Seat<Self>,
     pub shm_state: ShmState,
-    pub space: Space<Window>,
     pub output_manager_state: OutputManagerState,
     pub xdg_shell_state: XdgShellState,
 
@@ -70,7 +82,15 @@ pub struct App<B: Backend + 'static> {
 
     pub backend: B,
 
-    pub engine: ModuleEngine,
+    pub engine: ModuleEngine<CompositorContext>,
+
+    pub globals: Arc<Mutex<CompositorGlobals>>,
+}
+
+impl<B: Backend> App<B> {
+    pub fn globals(&self) -> MutexGuard<'_, CompositorGlobals> {
+        self.globals.lock().unwrap()
+    }
 }
 
 impl<B: Backend> App<B> {
@@ -103,7 +123,7 @@ impl<B: Backend> App<B> {
         // Пространство для назначения окон к нему.
         // Отслеживает окна и выводы.
         // Можно получить доступ через space.element() и space.outputs()
-        let space = Space::<Window>::default();
+        //let space = Space::<Window>::default();
 
         // Управляет копированием/вставкой и перетакиванием (drag-and-drop) от устройств ввода
         let data_device_state = DataDeviceState::new::<Self>(dh);
@@ -120,9 +140,21 @@ impl<B: Backend> App<B> {
 
         let popups = PopupManager::default();
 
+        let mut globals = Arc::new(Mutex::new(CompositorGlobals::new()));
+
+        let factory = {
+            CompositorContextFactory {
+                globals: globals.clone(),
+            }
+        };
+
         // Настройка модулей
-        let graphics = Arc::new(Mutex::new(Graphics::new()));
-        let mut engine = ModuleEngine::new(graphics.clone())?;
+        let mut engine = ModuleEngine::new(factory)?;
+        engine.add_capability(
+            "compositor.window",
+            CapabilityWriteRules::SingleWrite,
+            GeneralCapabilityProvider,
+        );
 
         Ok(Self {
             compositor_state,
@@ -130,7 +162,7 @@ impl<B: Backend> App<B> {
             seat_state,
             seat,
             shm_state,
-            space,
+            //space,
             output_manager_state,
             xdg_shell_state,
             popups,
@@ -138,6 +170,7 @@ impl<B: Backend> App<B> {
             backend,
 
             engine,
+            globals,
         })
     }
 
@@ -145,17 +178,17 @@ impl<B: Backend> App<B> {
         let Ok(root) = find_popup_root_surface(&PopupKind::Xdg(popup.clone())) else {
             return;
         };
-        let Some(window) = self
-            .space
+        let space = &self.globals.lock().unwrap().space;
+        let Some(window) = space
             .elements()
             .find(|w| w.toplevel().unwrap().wl_surface() == &root)
         else {
             return;
         };
 
-        let output = self.space.outputs().next().unwrap();
-        let output_geo = self.space.output_geometry(output).unwrap();
-        let window_geo = self.space.element_geometry(window).unwrap();
+        let output = space.outputs().next().unwrap();
+        let output_geo = space.output_geometry(output).unwrap();
+        let window_geo = space.element_geometry(window).unwrap();
 
         // The target geometry for the positioner should be relative to its parent's geometry, so
         // we will compute that here.
@@ -168,6 +201,16 @@ impl<B: Backend> App<B> {
         });
     }
 
+    fn rearrange_windows(&mut self) {
+        let mut bindings = self
+            .engine
+            .get_single_write_bindings::<Compositor>("compositor.window");
+        let mut store = bindings.store();
+
+        bindings.call_rearrange_windows(&mut store).unwrap();
+    }
+
+    /*
     fn rearrange_windows(&mut self) {
         let all_windows: Vec<_> = self.space.elements().cloned().collect();
         let count = all_windows.len();
@@ -217,6 +260,7 @@ impl<B: Backend> App<B> {
             surface.send_configure();
         }
     }
+    */
 }
 
 delegate_seat!(@<B: Backend + 'static> App<B>);
@@ -244,13 +288,13 @@ impl<B: Backend + 'static> CompositorHandler for App<B> {
 
     fn commit(&mut self, surface: &WlSurface) {
         on_commit_buffer_handler::<Self>(surface);
+        let space = &mut self.globals.lock().unwrap().space;
         if !is_sync_subsurface(surface) {
             let mut root = surface.clone();
             while let Some(parent) = get_parent(&root) {
                 root = parent;
             }
-            if let Some(window) = self
-                .space
+            if let Some(window) = space
                 .elements()
                 .find(|w| w.toplevel().unwrap().wl_surface() == &root)
             {
@@ -258,8 +302,8 @@ impl<B: Backend + 'static> CompositorHandler for App<B> {
             }
         }
 
-        handle_commit(&mut self.popups, &self.space, surface);
-        resize_grab::handle_commit(&mut self.space, surface);
+        handle_commit(&mut self.popups, space, surface);
+        resize_grab::handle_commit(space, surface);
     }
 }
 
@@ -285,7 +329,14 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let window = Window::new_wayland_window(surface);
-        self.space.map_element(window, (0, 0), false);
+        {
+            let mut globals = self.globals.lock().unwrap();
+            let space = &mut globals.space;
+
+            space.map_element(window.clone(), (0, 0), false);
+            globals.mapped_windows.insert(window);
+        }
+
         self.rearrange_windows();
     }
 
@@ -316,18 +367,20 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
         if let Some(start_data) = check_grab(&seat, wl_surface, serial) {
             let pointer = seat.get_pointer().unwrap();
 
-            let window = self
-                .space
-                .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
-                .unwrap()
-                .clone();
-            let initial_window_location = self.space.element_location(&window).unwrap();
+            let grab = {
+                let space = &mut self.globals.lock().unwrap().space;
+                let window = space
+                    .elements()
+                    .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
+                    .unwrap()
+                    .clone();
+                let initial_window_location = space.element_location(&window).unwrap();
 
-            let grab = MoveSurfaceGrab {
-                start_data,
-                window,
-                initial_window_location,
+                MoveSurfaceGrab {
+                    start_data,
+                    window,
+                    initial_window_location,
+                }
             };
 
             pointer.set_grab(self, grab, serial, Focus::Clear);
@@ -348,27 +401,30 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
         if let Some(start_data) = check_grab(&seat, wl_surface, serial) {
             let pointer = seat.get_pointer().unwrap();
 
-            let window = self
-                .space
-                .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
-                .unwrap()
-                .clone();
-            let initial_window_location = self.space.element_location(&window).unwrap();
-            let initial_window_size = window.geometry().size;
+            let grab = {
+                let space = &self.globals.lock().unwrap().space;
 
-            surface.with_pending_state(|state| {
-                state.states.set(xdg_toplevel::State::Resizing);
-            });
+                let window = space
+                    .elements()
+                    .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
+                    .unwrap()
+                    .clone();
+                let initial_window_location = space.element_location(&window).unwrap();
+                let initial_window_size = window.geometry().size;
 
-            surface.send_pending_configure();
+                surface.with_pending_state(|state| {
+                    state.states.set(xdg_toplevel::State::Resizing);
+                });
 
-            let grab = ResizeSurfaceGrab::start(
-                start_data,
-                window,
-                edges.into(),
-                Rectangle::new(initial_window_location, initial_window_size),
-            );
+                surface.send_pending_configure();
+
+                ResizeSurfaceGrab::start(
+                    start_data,
+                    window,
+                    edges.into(),
+                    Rectangle::new(initial_window_location, initial_window_size),
+                )
+            };
 
             pointer.set_grab(self, grab, serial, Focus::Clear);
         }
