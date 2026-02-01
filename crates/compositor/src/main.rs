@@ -5,30 +5,9 @@
 mod compositor;
 mod loader;
 
-use crate::{
-    compositor::window::WinitBackend,
-    loader::{LoaderLoopData, init_loader},
-};
-use log::LevelFilter;
+use crate::compositor::window::WinitBackend;
 use smithay::reexports::calloop::EventLoop;
-use std::io::Write;
 use tracy_client::Client;
-
-fn setup_logging() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "[{} {}] {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.args()
-            )
-        })
-        .filter_level(LevelFilter::Warn)
-        .filter_module("prototype", LevelFilter::Debug)
-        .init();
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

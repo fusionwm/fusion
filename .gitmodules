@@ -1,3 +1,6 @@
 [submodule "lib/tree-sitter-config"]
 	path = lib/tree-sitter-config
 	url = https://github.com/Nethalym/tree-sitter-config.git
+[submodule "specs/plugin-base"]
+	path = specs/plugin-base
+	url = https://github.com/fusionwm/plugin-base

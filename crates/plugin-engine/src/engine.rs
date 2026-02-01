@@ -32,7 +32,7 @@ pub trait InnerContext: Send + Sync + Sized + 'static {
 
 new_key_type! { pub struct PluginID; }
 
-pub struct ModuleEngine<I: InnerContext> {
+pub struct PluginEngine<I: InnerContext> {
     engine: Engine,
     loader: PluginLoader,
     captable: CapabilityTable<I>,
@@ -86,7 +86,7 @@ impl<I: InnerContext, B: UntypedPluginBinding> core::ops::Deref for BindingConte
     }
 }
 
-impl<I: InnerContext> ModuleEngine<I> {
+impl<I: InnerContext> PluginEngine<I> {
     fn ensure_directory_exists() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::create_dir_all(I::config_path())?;
         std::fs::create_dir_all(I::plugins_path())?;

@@ -1,5 +1,5 @@
 use crate::{
-    Xd,
+    Example,
     fusion::fusion::compositor::window_manager::{
         get_elements, get_output_size, set_window_pos, set_window_size,
     },
@@ -9,7 +9,7 @@ wit_bindgen::generate!({
     path: "wit-fusion",
 });
 
-impl Guest for crate::Xd {
+impl Guest for crate::Example {
     #[allow(async_fn_in_trait)]
     fn tick() {}
 
@@ -49,4 +49,4 @@ impl Guest for crate::Xd {
     }
 }
 
-export!(Xd);
+export!(Example);

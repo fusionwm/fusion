@@ -1,16 +1,17 @@
-use crate::plugin::general::logging::error;
+use crate::plugin::general::logging::info;
 
 pub mod fusion;
 
 wit_bindgen::generate!({
-    path: "wit-plugin",
+    path: "../../specs/plugin-base",
+    world: "general",
 });
 
-pub struct Xd;
-impl Guest for Xd {
+pub struct Example;
+impl Guest for Example {
     fn init() {
-        error("Plugin initialized");
+        info("Plugin initialized");
     }
 }
 
-export!(Xd);
+export!(Example);

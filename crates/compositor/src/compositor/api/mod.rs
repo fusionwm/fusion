@@ -1,11 +1,9 @@
 use std::{
-    cell::{Ref, RefCell, RefMut},
     collections::HashMap,
-    rc::Rc,
     sync::{Arc, Mutex},
 };
 
-use module_engine::engine::{InnerContext, InnerContextFactory};
+use plugin_engine::engine::{InnerContext, InnerContextFactory};
 use slotmap::{SlotMap, new_key_type};
 use smithay::desktop::{Space, Window};
 use wasmtime::component::HasData;
@@ -109,4 +107,14 @@ impl HasData for CompositorContext {
 
 impl InnerContext for CompositorContext {
     type Factory = CompositorContextFactory;
+
+    fn config_path() -> std::path::PathBuf {}
+
+    fn logs_path() -> std::path::PathBuf {
+        todo!()
+    }
+
+    fn plugins_path() -> std::path::PathBuf {
+        todo!()
+    }
 }

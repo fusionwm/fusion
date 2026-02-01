@@ -1,9 +1,6 @@
-use std::{
-    any::TypeId,
-    cell::{Ref, RefMut},
-};
+use std::any::TypeId;
 
-use module_engine::{
+use plugin_engine::{
     context::ExecutionContext,
     engine::UntypedPluginBinding,
     table::CapabilityProvider,
@@ -32,7 +29,7 @@ impl CapabilityProvider for GeneralCapabilityProvider {
         store: &mut wasmtime::Store<ExecutionContext<Self::Inner>>,
         component: &wasmtime::component::Component,
         linker: &Linker<ExecutionContext<Self::Inner>>,
-    ) -> Box<dyn module_engine::engine::UntypedPluginBinding> {
+    ) -> Box<dyn plugin_engine::engine::UntypedPluginBinding> {
         Box::new(Compositor::instantiate(&mut *store, component, linker).unwrap())
     }
 }

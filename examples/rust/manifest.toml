@@ -1,0 +1,7 @@
+name = "rust"
+version = "0.1.0"
+description = "Example"
+repository = "https://github.com/fusionwm/fusion"
+authors = []
+
+capabilities = []

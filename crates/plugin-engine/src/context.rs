@@ -1,11 +1,11 @@
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxView, WasiView};
 
+use crate::config::Config;
 use crate::engine::InnerContext;
-use crate::{config::Config, logging::Logger};
 use std::path::PathBuf;
 
 pub struct ExecutionContext<I: InnerContext> {
-    logger: Logger,
+    log: PathBuf,
     config: Config,
     wasi: WasiCtx,
     table: ResourceTable,
@@ -15,7 +15,7 @@ pub struct ExecutionContext<I: InnerContext> {
 impl<I: InnerContext> ExecutionContext<I> {
     pub fn new(config: Config, log: PathBuf, inner: I) -> Self {
         ExecutionContext {
-            logger: Logger::new(log),
+            log,
             config,
             inner,
             wasi: WasiCtx::default(),
@@ -23,8 +23,8 @@ impl<I: InnerContext> ExecutionContext<I> {
         }
     }
 
-    pub const fn logger(&mut self) -> &mut Logger {
-        &mut self.logger
+    pub const fn log(&self) -> &PathBuf {
+        &self.log
     }
 
     pub const fn config(&self) -> &Config {

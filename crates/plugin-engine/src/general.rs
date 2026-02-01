@@ -6,7 +6,10 @@ use crate::{
     general::plugin::general::{config, logging},
 };
 
-wasmtime::component::bindgen!("general");
+wasmtime::component::bindgen!({
+    path: "../../specs/plugin-base",
+    world: "general",
+});
 
 impl<I: InnerContext> HasData for ExecutionContext<I> {
     type Data<'a> = &'a mut ExecutionContext<I>;
@@ -14,23 +17,19 @@ impl<I: InnerContext> HasData for ExecutionContext<I> {
 
 impl<I: InnerContext> logging::Host for ExecutionContext<I> {
     fn debug(&mut self, message: String) {
-        log::warn!("{message}");
-        crate::debug!(self.logger(), "{message}");
+        tracing::debug!("{message}");
     }
 
     fn info(&mut self, message: String) {
-        log::warn!("{message}");
-        crate::info!(self.logger(), "{message}");
+        tracing::info!("{message}");
     }
 
     fn warn(&mut self, message: String) {
-        log::warn!("{message}");
-        crate::warn!(self.logger(), "{message}");
+        tracing::warn!("{message}");
     }
 
     fn error(&mut self, message: String) {
-        log::error!("{message}");
-        crate::error!(self.logger(), "{message}");
+        tracing::error!("{message}");
     }
 }
 
