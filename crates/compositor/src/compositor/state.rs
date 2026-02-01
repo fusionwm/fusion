@@ -9,7 +9,7 @@ use std::{
 use graphics::{InternalClient, graphics::Graphics};
 use slotmap::SlotMap;
 use smithay::{
-    backend::renderer::utils::on_commit_buffer_handler,
+    backend::renderer::{element::RenderElement, utils::on_commit_buffer_handler},
     delegate_compositor, delegate_data_device, delegate_output, delegate_seat, delegate_shm,
     delegate_xdg_shell,
     desktop::{

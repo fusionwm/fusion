@@ -82,7 +82,7 @@ impl<B: Backend + 'static> App<B> {
                         });
                         keyboard.set_focus(self, Option::<WlSurface>::None, serial);
                     }
-                };
+                }
 
                 pointer.button(
                     self,
