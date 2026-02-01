@@ -2,6 +2,7 @@
 
 use crate::{
     engine::{Bindings, PluginID, UntypedPluginBinding},
+    general::General,
     wasm::{Component, Linker, Store},
 };
 use bitflags::bitflags;
@@ -142,7 +143,12 @@ impl<I: InnerContext> CapabilityTable<I> {
         true
     }
 
-    pub fn link(&self, capabilities: &[String], linker: &mut Linker<ExecutionContext<I>>) {
+    pub fn link(
+        &self,
+        capabilities: &[String],
+        linker: &mut Linker<ExecutionContext<I>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        General::add_to_linker::<_, ExecutionContext<I>>(linker, |store| store)?;
         for requested in capabilities {
             if let Some(capability) = self.inner.get(requested) {
                 if capability.is_allowed_to_use() {
@@ -156,14 +162,8 @@ impl<I: InnerContext> CapabilityTable<I> {
                 panic!("{error}");
             }
         }
-    }
 
-    pub fn observe_if_needed(&mut self, capabilities: &[String], plugin_id: PluginID) {
-        for requested in capabilities {
-            // SAFETY: We have already checked that the capability exists
-            let capability = unsafe { self.inner.get_mut(requested).unwrap_unchecked() };
-            capability.checker.add_writer_if_possible(plugin_id);
-        }
+        Ok(())
     }
 
     pub fn remove_observing(&mut self, capabilities: &[String], plugin_id: PluginID) {
@@ -180,10 +180,12 @@ impl<I: InnerContext> CapabilityTable<I> {
         bindings: &mut Bindings<I>,
         component: &Component,
         linker: &mut Linker<ExecutionContext<I>>,
+        plugin_id: PluginID,
     ) {
         for requested in capabilities {
             // SAFETY: We have already checked that the capability exists
-            let capability = unsafe { self.inner.get(requested).unwrap_unchecked() };
+            let capability = unsafe { self.inner.get_mut(requested).unwrap_unchecked() };
+            capability.checker.add_writer_if_possible(plugin_id);
             let binding =
                 capability
                     .provider

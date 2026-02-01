@@ -1,5 +1,7 @@
 use crate::{
+    config::Config,
     context::ExecutionContext,
+    env::PluginEnvironment,
     general::General,
     loader::{ModuleLoader, PackedModule},
     manifest::Manifest,
@@ -9,6 +11,7 @@ use slotmap::{SlotMap, new_key_type};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    path::PathBuf,
     sync::Arc,
     time::Duration,
 };
@@ -19,29 +22,15 @@ use wasmtime::{
     component::{Component, Linker},
 };
 
-fn ensure_directory_exists() {
-    let root = dirs::config_dir().unwrap().join("nethalym");
-    if !root.exists() {
-        std::fs::create_dir(&root).unwrap();
-    }
-
-    let modules = root.join("modules");
-    if !modules.exists() {
-        std::fs::create_dir(&modules).unwrap();
-    }
-
-    let logs = root.join("logs");
-    if !logs.exists() {
-        std::fs::create_dir(&logs).unwrap();
-    }
-}
-
 pub trait InnerContextFactory<I: InnerContext> {
     fn generate(&self, capabilities: &[String]) -> I;
 }
 
 pub trait InnerContext: Send + Sync + Sized + 'static {
     type Factory: InnerContextFactory<Self>;
+    fn config_path() -> PathBuf;
+    fn logs_path() -> PathBuf;
+    fn plugins_path() -> PathBuf;
 }
 
 new_key_type! { pub(crate) struct PluginID; }
@@ -49,7 +38,7 @@ new_key_type! { pub(crate) struct PluginID; }
 pub struct ModuleEngine<I: InnerContext> {
     engine: Engine,
     loader: Arc<TokioMutex<ModuleLoader>>,
-    table: CapabilityTable<I>,
+    captable: CapabilityTable<I>,
     plugins: SlotMap<PluginID, PluginEnvironment<I>>,
     factory: I::Factory,
     failed: Vec<FailedModule>,
@@ -101,11 +90,18 @@ impl<I: InnerContext, B: UntypedPluginBinding> core::ops::Deref for BindingConte
 }
 
 impl<I: InnerContext> ModuleEngine<I> {
+    fn ensure_directory_exists() -> Result<(), Box<dyn std::error::Error>> {
+        std::fs::create_dir_all(I::config_path())?;
+        std::fs::create_dir_all(I::plugins_path())?;
+        std::fs::create_dir_all(I::logs_path())?;
+        Ok(())
+    }
+
     pub fn new(factory: I::Factory) -> Result<Self, Box<dyn std::error::Error>> {
-        ensure_directory_exists();
+        Self::ensure_directory_exists()?;
 
         let engine = Engine::default();
-        let loader = Arc::new(TokioMutex::new(ModuleLoader::new()?));
+        let loader = Arc::new(TokioMutex::new(ModuleLoader::new::<I>()?));
         let loader_clone = loader.clone();
         tokio::task::spawn(async move {
             loop {
@@ -119,7 +115,7 @@ impl<I: InnerContext> ModuleEngine<I> {
         Ok(Self {
             engine,
             loader,
-            table: CapabilityTable::default(),
+            captable: CapabilityTable::default(),
             plugins: SlotMap::default(),
             factory,
             failed: vec![],
@@ -132,7 +128,7 @@ impl<I: InnerContext> ModuleEngine<I> {
         kind: CapabilityWriteRules,
         provider: impl CapabilityProvider<Inner = I>,
     ) {
-        self.table
+        self.captable
             .register_capability(identifier.into(), kind, provider);
     }
 
@@ -140,16 +136,29 @@ impl<I: InnerContext> ModuleEngine<I> {
         &mut self,
         capability: &str,
     ) -> BindingContext<'_, I, B> {
-        let capability = self.table.get_capability_by_name(capability);
+        let capability = self.captable.get_capability_by_name(capability);
         let plugin_id = capability.writers().iter().next().unwrap();
         let environment = self.plugins.get_mut(*plugin_id).unwrap();
         let binding_id = TypeId::of::<B>();
-        let binding = environment.bindings.inner.get(&binding_id).unwrap();
+        let bindings = environment.bindings_mut();
+        let binding = bindings.inner.get(&binding_id).unwrap();
         let binding = binding.as_any().downcast_ref::<B>().unwrap();
         BindingContext {
-            store: &mut environment.bindings.store,
+            store: &mut bindings.store,
             binding,
         }
+    }
+
+    fn create_context(&self, manifest: &Manifest, config: Config) -> ExecutionContext<I> {
+        let log_file = I::logs_path().join(manifest.name());
+        let inner_context = self.factory.generate(manifest.capabilities());
+        ExecutionContext::new(config, log_file, inner_context)
+    }
+
+    fn create_linker(&self) -> Result<Linker<ExecutionContext<I>>, Box<dyn std::error::Error>> {
+        let mut linker = Linker::<ExecutionContext<I>>::new(&self.engine);
+        wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+        Ok(linker)
     }
 
     fn prepare_module(
@@ -158,49 +167,27 @@ impl<I: InnerContext> ModuleEngine<I> {
     ) -> Result<General, Box<dyn std::error::Error>> {
         log::warn!("[{}] Preparing module", packed.manifest.name());
 
-        let log_file = dirs::config_dir()
-            .unwrap()
-            .join("nethalym")
-            .join("logs")
-            .join(packed.manifest.name());
+        let mut linker = self.create_linker()?;
+        self.captable
+            .link(packed.manifest.capabilities(), &mut linker)?;
 
-        let mut linker = Linker::<ExecutionContext<I>>::new(&self.engine);
-        wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
-        let component = Component::from_binary(&self.engine, &packed.module)?;
-        General::add_to_linker::<_, ExecutionContext<I>>(&mut linker, |store| store)?;
-        self.table.link(packed.manifest.capabilities(), &mut linker);
-
-        let inner_context = self.factory.generate(packed.manifest.capabilities());
-        let context = ExecutionContext::new(packed.config, log_file, inner_context);
-
+        let context = self.create_context(&packed.manifest, packed.config);
         let store = Store::new(&self.engine, context);
+        let component = Component::from_binary(&self.engine, &packed.module)?;
+        let _ = linker.define_unknown_imports_as_traps(&component);
 
-        let plugin_id = self.plugins.insert(PluginEnvironment {
-            path: packed.path,
-            manifest: packed.manifest,
+        let plugin_id = self.plugins.insert(PluginEnvironment::new(
+            packed.path,
+            packed.manifest,
             component,
-            status: PluginStatus::Running,
-            bindings: Bindings::new(store),
-        });
+            Bindings::new(store),
+        ));
 
         // SAFETY: The plugin ID is guaranteed to be valid because it was just inserted.
-        let (bindings, capabilities, component) = unsafe {
-            let workspace = self.plugins.get_mut(plugin_id).unwrap_unchecked();
-            (
-                &mut workspace.bindings,
-                workspace.manifest.capabilities(),
-                &workspace.component,
-            )
-        };
+        let env = unsafe { self.plugins.get_mut(plugin_id).unwrap_unchecked() };
+        env.create_bindings(&mut linker, &mut self.captable, plugin_id);
 
-        let _ = linker.define_unknown_imports_as_traps(component);
-        let general = General::instantiate(&mut bindings.store, component, &linker)?;
-
-        self.table.observe_if_needed(capabilities, plugin_id);
-        self.table
-            .create_bindings(capabilities, bindings, component, &mut linker);
-
-        Ok(general)
+        env.instantiate_general_api(&linker)
     }
 
     pub fn load_modules(&mut self) {
@@ -209,8 +196,6 @@ impl<I: InnerContext> ModuleEngine<I> {
         } else {
             return;
         };
-
-        println!("Raw modules: {}", modules.len());
 
         for module in modules {
             log::debug!("[Engine] Loading module: {}", module.manifest.name());
@@ -224,10 +209,10 @@ impl<I: InnerContext> ModuleEngine<I> {
                         self.plugins.iter_mut().last().unwrap_unchecked()
                     };
 
-                    if let Err(err) = general.call_init(&mut env.bindings.store) {
+                    if let Err(err) = general.call_init(&mut env.bindings_mut().store) {
                         log::error!("[{}] Unable to initialize module: {}", manifest.name(), err);
                         self.plugins.remove(plugin_id);
-                        self.table
+                        self.captable
                             .remove_observing(manifest.capabilities(), plugin_id);
                         self.failed.push(FailedModule { path, manifest });
                     }
@@ -240,20 +225,20 @@ impl<I: InnerContext> ModuleEngine<I> {
         }
     }
 
-    pub fn handle_modules(&mut self) {}
-
-    pub fn tick(&mut self) {
-        self.load_modules();
+    pub fn has_unloaded_modules(&self) -> bool {
+        if let Ok(loader) = self.loader.try_lock() {
+            loader.has_packed()
+        } else {
+            false
+        }
     }
 
     /*
-
     pub fn restart_module(&mut self, index: usize) {
         let module = self.failed.remove(index);
         ModuleLoader::create_packed_module(module.path).unwrap();
         //TODO: Implement module restart logic
     }
-
     */
 }
 
@@ -290,32 +275,6 @@ impl<I: InnerContext> Bindings<I> {
 
     pub const fn store_mut(&mut self) -> &mut Store<ExecutionContext<I>> {
         &mut self.store
-    }
-}
-
-#[allow(dead_code)]
-pub struct PluginEnvironment<I: InnerContext> {
-    path: String,
-    manifest: Manifest,
-    component: Component,
-    status: PluginStatus,
-    bindings: Bindings<I>,
-}
-
-impl<I: InnerContext> PluginEnvironment<I> {
-    #[must_use]
-    pub const fn path(&self) -> &str {
-        self.path.as_str()
-    }
-
-    #[must_use]
-    pub const fn manifest(&self) -> &Manifest {
-        &self.manifest
-    }
-
-    #[must_use]
-    pub const fn status(&self) -> PluginStatus {
-        self.status
     }
 }
 

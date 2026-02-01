@@ -13,7 +13,7 @@ use thiserror::Error;
 use tokio::sync::mpsc::Receiver;
 use zip::ZipArchive;
 
-use crate::{config::Config, manifest::Manifest};
+use crate::{config::Config, engine::InnerContext, manifest::Manifest};
 
 #[derive(Error, Debug)]
 pub enum ModuleLoaderError {
@@ -54,16 +54,14 @@ pub struct ModuleLoader {
 }
 
 impl ModuleLoader {
-    pub fn new() -> Result<Self, ModuleLoaderError> {
-        let config_dir = dirs::config_dir().ok_or(ModuleLoaderError::ConfigDirectoryNotDefined)?;
-        let modules_dir = config_dir.join("nethalym").join("modules");
-        if !modules_dir.exists() {
-            std::fs::create_dir_all(&modules_dir)?;
-        }
+    pub fn has_packed(&self) -> bool {
+        !self.loaded.is_empty()
+    }
 
+    pub fn new<I: InnerContext>() -> Result<Self, ModuleLoaderError> {
         let (file_tx, file_rx) = tokio::sync::mpsc::channel(100);
 
-        let thread_dir = modules_dir.clone();
+        let thread_dir = I::plugins_path();
         tokio::task::spawn_blocking(move || {
             let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
             let mut watcher = notify::recommended_watcher(tx).unwrap(); //TODO Error

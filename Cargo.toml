@@ -7,7 +7,7 @@ members = [
     "crates/graphics",
     "crates/graphics-derive",
     "crates/graphics-widgets",
-    "crates/module-engine",
+    "crates/plugin-engine",
     "examples/rust",
 ]
 
@@ -15,7 +15,7 @@ members = [
 ### General
 thiserror = "2.0.18"
 
-module-engine = { path = "crates/module-engine" }
+plugin-engine = { path = "crates/plugin-engine" }
 
 ### Other
 wasmtime = { version = "41.0.1", features = ["async"] }
@@ -33,7 +33,7 @@ chrono = { version = "0.4.43", features = ["rkyv-32"] }
 bitflags = "2.10.0"
 tree-sitter = "0.26.3"
 regex = "1.12.2"
-bytemuck = { version = "1.24.0", features = ["derive"] }
+bytemuck = { version = "1.25.0", features = ["derive"] }
 clap = { version = "4.5.56", features = ["derive"] }
 
 #Https
@@ -99,4 +99,4 @@ once_cell = "1.21.3"
 slotmap = "1.1.1"
 lasso = "0.7.3"
 lazy_static = "1.5.0"
-wit-bindgen = "0.51.0"
+wit-bindgen = "0.52.0"
