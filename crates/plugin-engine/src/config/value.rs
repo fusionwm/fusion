@@ -39,7 +39,11 @@ impl FromStr for Array {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Array(s.split(',').map(Value::from_str).collect()))
+        Ok(Array(
+            s.split(',')
+                .map(|s| Value::from_str(s.trim()).unwrap())
+                .collect(),
+        ))
     }
 }
 
@@ -70,9 +74,11 @@ pub enum Value {
     Array(Array),
 }
 
-impl Value {
-    pub fn from_str(s: &str) -> Self {
-        if let Ok(value) = s.parse::<i32>() {
+impl FromStr for Value {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let value = if let Ok(value) = s.parse::<i32>() {
             Value::Integer(value)
         } else if let Ok(value) = s.parse::<u32>() {
             Value::UnsignedInteger(value)
@@ -90,9 +96,14 @@ impl Value {
             Value::Array(value)
         } else {
             panic!("Invalid value")
-        }
-    }
+        };
 
+        Ok(value)
+    }
+}
+
+impl Value {
+    #[must_use]
     pub fn as_enum(&self) -> String {
         match self {
             Value::Enumeration(_) => "enum".to_string(),
@@ -100,9 +111,10 @@ impl Value {
         }
     }
 
+    #[must_use]
     pub fn as_array_of_enum(&self) -> Vec<String> {
         match self {
-            Value::Array(array) => array.0.iter().map(|value| value.as_enum()).collect(),
+            Value::Array(array) => array.0.iter().map(Value::as_enum).collect(),
             _ => panic!("Value is not an array"),
         }
     }

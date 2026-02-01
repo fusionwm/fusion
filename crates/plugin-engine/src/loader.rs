@@ -16,7 +16,7 @@ use notify::{
 use tokio::sync::Mutex;
 use zip::ZipArchive;
 
-use crate::{config::Config, engine::InnerContext, manifest::Manifest};
+use crate::{FILE_EXTENSION, config::Config, engine::InnerContext, manifest::Manifest};
 
 enum Request {
     GetPlugins,
@@ -46,11 +46,10 @@ async fn run_loader_loop<I: InnerContext>(loader: Arc<Mutex<InnerPluginLoader>>)
     }
 }
 
-type TokioSender<T> = tokio::sync::mpsc::Sender<T>;
 type TokioReceiver<T> = tokio::sync::mpsc::Receiver<T>;
 
 pub(crate) struct PluginLoader {
-    loader: Arc<Mutex<InnerPluginLoader>>,
+    _loader: Arc<Mutex<InnerPluginLoader>>,
     request_sender: Sender<Request>,
     answer_receiver: Receiver<Answer>,
 }
@@ -59,11 +58,11 @@ impl PluginLoader {
     pub fn new<I: InnerContext>() -> Result<Self, Box<dyn std::error::Error>> {
         let (request_sender, request_receiver) = std::sync::mpsc::channel();
         let (answer_sender, answer_receiver) = std::sync::mpsc::channel();
-        let loader = InnerPluginLoader::new(request_receiver, answer_sender, I::plugins_path())?;
+        let loader = InnerPluginLoader::new(request_receiver, answer_sender, &I::plugins_path())?;
         let loader = Arc::new(Mutex::new(loader));
         tokio::task::spawn(run_loader_loop::<I>(loader.clone()));
         Ok(Self {
-            loader,
+            _loader: loader,
             request_sender,
             answer_receiver,
         })
@@ -98,24 +97,18 @@ struct InnerPluginLoader {
 }
 
 impl InnerPluginLoader {
-    pub fn has_packed(&self) -> bool {
-        !self.loaded.is_empty()
-    }
-
     pub fn new(
         request_receiver: Receiver<Request>,
         answer_sender: Sender<Answer>,
-        plugins_path: PathBuf,
+        plugins_path: &Path,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let (file_tx, file_receiver) = tokio::sync::mpsc::channel(32);
 
-        tokio::task::spawn_blocking(move || {
-            let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
-            let mut watcher = notify::recommended_watcher(tx).unwrap(); //TODO Error
-            watcher
-                .watch(plugins_path.as_path(), RecursiveMode::NonRecursive)
-                .unwrap(); //TODO Error
+        let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
+        let mut watcher = notify::recommended_watcher(tx)?;
+        watcher.watch(plugins_path, RecursiveMode::NonRecursive)?;
 
+        tokio::task::spawn_blocking(move || {
             for event in rx {
                 let _ = file_tx.blocking_send(event);
             }
@@ -156,7 +149,7 @@ impl InnerPluginLoader {
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
 
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "lym") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == FILE_EXTENSION) {
                 self.load_plugin(path);
             }
         }

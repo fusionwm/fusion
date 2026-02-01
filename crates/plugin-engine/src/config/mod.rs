@@ -1,7 +1,12 @@
+#![allow(dead_code)]
+#![allow(unused)]
+
 mod section;
 mod section_option;
 mod value;
 mod value_type;
+
+use std::str::FromStr;
 
 pub use section::*;
 pub use section_option::*;
@@ -12,6 +17,7 @@ use tree_sitter::{Node, Parser};
 
 use crate::config::section::Section;
 
+#[must_use]
 pub fn read_meta_name<'a>(node: &'a Node, source: &'a str) -> &'a str {
     node.child_by_field_name("name")
         .unwrap()
@@ -19,6 +25,7 @@ pub fn read_meta_name<'a>(node: &'a Node, source: &'a str) -> &'a str {
         .unwrap()
 }
 
+#[must_use]
 pub fn read_meta_info(node: &Node, source: &str) -> Value {
     //field("type", choice($.enum_with_block, $.values)),
     Value::from_str(
@@ -27,6 +34,7 @@ pub fn read_meta_info(node: &Node, source: &str) -> Value {
             .utf8_text(source.as_bytes())
             .unwrap(),
     )
+    .unwrap()
 }
 
 unsafe extern "C" {
@@ -39,7 +47,7 @@ pub struct Config {
 }
 
 impl Config {
-    #[allow(unused)]
+    #[must_use]
     pub fn parse(source: &str) -> Self {
         let language = unsafe { tree_sitter_config() };
         let mut parser = Parser::new();
@@ -62,7 +70,8 @@ impl Config {
         Config { sections }
     }
 
+    #[must_use]
     pub fn get_value(&self, path: &str) -> Option<Value> {
-        Some(Value::from_str("993"))
+        Some(Value::String(Str(path.to_string())))
     }
 }

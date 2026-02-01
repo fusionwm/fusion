@@ -17,3 +17,5 @@ pub mod wasm {
         component::{Component, Linker, bindgen},
     };
 }
+
+pub const FILE_EXTENSION: &str = "fsp";

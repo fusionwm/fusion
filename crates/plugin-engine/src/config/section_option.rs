@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use tree_sitter::Node;
 
@@ -15,6 +15,7 @@ pub struct SectionOption {
 }
 
 impl SectionOption {
+    #[must_use]
     pub fn from_node(node: &Node, source: &str) -> Self {
         let name = node
             .child_by_field_name("name")
@@ -28,7 +29,8 @@ impl SectionOption {
                 .unwrap()
                 .utf8_text(source.as_bytes())
                 .unwrap(),
-        );
+        )
+        .unwrap();
 
         let mut meta_infos: HashMap<String, Value> = node
             .children(&mut node.walk())
@@ -57,6 +59,7 @@ impl SectionOption {
         }
     }
 
+    #[must_use]
     pub const fn name(&self) -> &str {
         self.name.as_str()
     }
