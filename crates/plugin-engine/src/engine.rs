@@ -3,7 +3,7 @@ use crate::{
     context::ExecutionContext,
     env::PluginEnvironment,
     general::General,
-    loader::{ModuleLoader, PackedModule},
+    loader::{PackedModule, PluginLoader},
     manifest::Manifest,
     table::{CapabilityProvider, CapabilityTable, CapabilityWriteRules},
 };
@@ -12,10 +12,7 @@ use std::{
     any::{Any, TypeId},
     collections::HashMap,
     path::PathBuf,
-    sync::Arc,
-    time::Duration,
 };
-use tokio::sync::Mutex as TokioMutex;
 use wasmtime::{Engine, Store};
 use wasmtime::{
     StoreContextMut,
@@ -33,11 +30,11 @@ pub trait InnerContext: Send + Sync + Sized + 'static {
     fn plugins_path() -> PathBuf;
 }
 
-new_key_type! { pub(crate) struct PluginID; }
+new_key_type! { pub struct PluginID; }
 
 pub struct ModuleEngine<I: InnerContext> {
     engine: Engine,
-    loader: Arc<TokioMutex<ModuleLoader>>,
+    loader: PluginLoader,
     captable: CapabilityTable<I>,
     plugins: SlotMap<PluginID, PluginEnvironment<I>>,
     factory: I::Factory,
@@ -101,16 +98,7 @@ impl<I: InnerContext> ModuleEngine<I> {
         Self::ensure_directory_exists()?;
 
         let engine = Engine::default();
-        let loader = Arc::new(TokioMutex::new(ModuleLoader::new::<I>()?));
-        let loader_clone = loader.clone();
-        tokio::task::spawn(async move {
-            loop {
-                if let Ok(mut loader) = loader_clone.try_lock() {
-                    loader.handle_events();
-                }
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-        });
+        let loader = PluginLoader::new::<I>()?;
 
         Ok(Self {
             engine,
@@ -191,11 +179,7 @@ impl<I: InnerContext> ModuleEngine<I> {
     }
 
     pub fn load_modules(&mut self) {
-        let modules = if let Ok(mut loader) = self.loader.try_lock() {
-            loader.get_raw_modules()
-        } else {
-            return;
-        };
+        let modules = self.loader.get_packed_plugins().unwrap();
 
         for module in modules {
             log::debug!("[Engine] Loading module: {}", module.manifest.name());
@@ -225,21 +209,11 @@ impl<I: InnerContext> ModuleEngine<I> {
         }
     }
 
-    pub fn has_unloaded_modules(&self) -> bool {
-        if let Ok(loader) = self.loader.try_lock() {
-            loader.has_packed()
-        } else {
-            false
-        }
+    pub fn restart_module(&mut self, plugin_id: impl Into<PluginID>) {
+        let plugin_id = plugin_id.into();
+        let env = self.plugins.remove(plugin_id).unwrap();
+        self.loader.load_plugin(env.path_owned()).unwrap();
     }
-
-    /*
-    pub fn restart_module(&mut self, index: usize) {
-        let module = self.failed.remove(index);
-        ModuleLoader::create_packed_module(module.path).unwrap();
-        //TODO: Implement module restart logic
-    }
-    */
 }
 
 pub trait UntypedPluginBinding: 'static {
@@ -279,6 +253,6 @@ impl<I: InnerContext> Bindings<I> {
 }
 
 pub struct FailedModule {
-    path: String,
+    path: PathBuf,
     manifest: Manifest,
 }

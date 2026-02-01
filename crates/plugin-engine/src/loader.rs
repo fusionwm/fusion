@@ -2,71 +2,118 @@ use std::{
     collections::HashMap,
     io::{Cursor, Read},
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        mpsc::{Receiver, Sender},
+    },
+    time::Duration,
 };
 
-use log::info;
 use notify::{
     RecursiveMode, Watcher,
     event::{ModifyKind, RenameMode},
 };
-use thiserror::Error;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::Mutex;
 use zip::ZipArchive;
 
 use crate::{config::Config, engine::InnerContext, manifest::Manifest};
 
-#[derive(Error, Debug)]
-pub enum ModuleLoaderError {
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("Zip error: {0}")]
-    Zip(#[from] zip::result::ZipError),
-
-    #[error("Notify error: {0}")]
-    Notify(#[from] notify::Error),
-
-    #[error("Not a file: {0}")]
-    NotAFile(String),
-
-    #[error("Invalid file name: {0}")]
-    InvalidFileName(String),
-
-    #[error("Config directory not defined")]
-    ConfigDirectoryNotDefined,
-
-    #[error("Missing manifest in module {0}")]
-    MissingManifestFile(String),
-
-    #[error("Missing WASM file in module {0}")]
-    MissingWasmFile(String),
-
-    #[error("Invalid manifest in module {0}: {1}")]
-    InvalidManifest(String, toml::de::Error),
+enum Request {
+    GetPlugins,
+    LoadPlugin(PathBuf),
 }
 
-pub type ModuleLoaderResult<T> = Result<T, ModuleLoaderError>;
+enum Answer {
+    GetPlugins(Vec<PackedModule>),
+}
 
-pub struct ModuleLoader {
-    file_rx: Receiver<notify::Result<notify::Event>>,
+async fn run_loader_loop<I: InnerContext>(loader: Arc<Mutex<InnerPluginLoader>>) {
+    {
+        let mut loader = loader.lock().await;
+        if let Err(e) = loader.preload_plugins(I::plugins_path()).await {
+            log::error!("[Loader] Preload failed: {e:?}");
+            return;
+        }
+    }
+
+    let mut interval = tokio::time::interval(Duration::from_millis(10));
+    loop {
+        interval.tick().await; // Более точный аналог sleep
+
+        if let Ok(mut loader) = loader.try_lock() {
+            loader.handle_events();
+        }
+    }
+}
+
+type TokioSender<T> = tokio::sync::mpsc::Sender<T>;
+type TokioReceiver<T> = tokio::sync::mpsc::Receiver<T>;
+
+pub(crate) struct PluginLoader {
+    loader: Arc<Mutex<InnerPluginLoader>>,
+    request_sender: Sender<Request>,
+    answer_receiver: Receiver<Answer>,
+}
+
+impl PluginLoader {
+    pub fn new<I: InnerContext>() -> Result<Self, Box<dyn std::error::Error>> {
+        let (request_sender, request_receiver) = std::sync::mpsc::channel();
+        let (answer_sender, answer_receiver) = std::sync::mpsc::channel();
+        let loader = InnerPluginLoader::new(request_receiver, answer_sender, I::plugins_path())?;
+        let loader = Arc::new(Mutex::new(loader));
+        tokio::task::spawn(run_loader_loop::<I>(loader.clone()));
+        Ok(Self {
+            loader,
+            request_sender,
+            answer_receiver,
+        })
+    }
+
+    pub fn get_packed_plugins(&mut self) -> Result<Vec<PackedModule>, Box<dyn std::error::Error>> {
+        let mut packed = Vec::new();
+        while let Ok(answer) = self.answer_receiver.try_recv() {
+            match answer {
+                Answer::GetPlugins(plugins) => packed.extend(plugins),
+            }
+        }
+
+        self.request_sender.send(Request::GetPlugins)?;
+
+        Ok(packed)
+    }
+
+    pub fn load_plugin(&mut self, path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+        self.request_sender.send(Request::LoadPlugin(path))?;
+        Ok(())
+    }
+}
+
+struct InnerPluginLoader {
+    request_receiver: Receiver<Request>,
+    answer_sender: Sender<Answer>,
+
+    file_receiver: TokioReceiver<notify::Result<notify::Event>>,
     loaded: HashMap<PathBuf, PackedModule>,
     renamed: Option<PackedModule>,
 }
 
-impl ModuleLoader {
+impl InnerPluginLoader {
     pub fn has_packed(&self) -> bool {
         !self.loaded.is_empty()
     }
 
-    pub fn new<I: InnerContext>() -> Result<Self, ModuleLoaderError> {
-        let (file_tx, file_rx) = tokio::sync::mpsc::channel(100);
+    pub fn new(
+        request_receiver: Receiver<Request>,
+        answer_sender: Sender<Answer>,
+        plugins_path: PathBuf,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let (file_tx, file_receiver) = tokio::sync::mpsc::channel(32);
 
-        let thread_dir = I::plugins_path();
         tokio::task::spawn_blocking(move || {
             let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
             let mut watcher = notify::recommended_watcher(tx).unwrap(); //TODO Error
             watcher
-                .watch(thread_dir.as_path(), RecursiveMode::NonRecursive)
+                .watch(plugins_path.as_path(), RecursiveMode::NonRecursive)
                 .unwrap(); //TODO Error
 
             for event in rx {
@@ -75,41 +122,62 @@ impl ModuleLoader {
         });
 
         Ok(Self {
-            file_rx,
+            request_receiver,
+            answer_sender,
+            file_receiver,
             loaded: HashMap::new(),
             renamed: None,
         })
     }
 
-    async fn preload_modules(&mut self, modules_dir: &PathBuf) -> ModuleLoaderResult<()> {
-        let mut entries = tokio::fs::read_dir(&modules_dir).await?;
+    fn load_plugin(&mut self, path: PathBuf) {
+        match Self::create_packed_module(path.clone()) {
+            Ok(module) => {
+                log::info!("[Loader] Load module: {}", module.manifest.name());
+                if let Some(cap) = module.manifest.custom_capabilities() {
+                    log::info!(
+                        "[{}] Available capabilities: {:?}",
+                        module.manifest.name(),
+                        cap
+                    );
+                }
+                self.loaded.insert(path, module);
+            }
+            Err(error) => log::error!("[Loader] {error}"),
+        }
+    }
+
+    async fn preload_plugins(
+        &mut self,
+        plugins_path: PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut entries = tokio::fs::read_dir(&plugins_path).await?;
 
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
 
             if path.is_file() && path.extension().is_some_and(|ext| ext == "lym") {
-                match Self::create_packed_module(&path) {
-                    Ok(module) => {
-                        info!("[Loader] Load module: {}", module.manifest.name());
-                        if let Some(cap) = module.manifest.custom_capabilities() {
-                            info!(
-                                "[{}] Available capabilities: {:?}",
-                                module.manifest.name(),
-                                cap
-                            );
-                        }
-                        self.loaded.insert(path, module);
-                    }
-                    Err(error) => log::error!("[Loader] {error}"),
-                }
+                self.load_plugin(path);
             }
         }
 
         Ok(())
     }
 
-    pub fn handle_events(&mut self) {
-        while let Ok(event) = self.file_rx.try_recv() {
+    fn handle_events(&mut self) {
+        while let Ok(request) = self.request_receiver.try_recv() {
+            match request {
+                Request::GetPlugins => {
+                    let answer = Answer::GetPlugins(self.get_packed_plugins());
+                    if let Err(err) = self.answer_sender.send(answer) {
+                        log::error!("[Loader] {err}");
+                    }
+                }
+                Request::LoadPlugin(path) => self.load_plugin(path),
+            }
+        }
+
+        while let Ok(event) = self.file_receiver.try_recv() {
             let mut event = match event {
                 Ok(events) => events,
                 Err(error) => {
@@ -132,26 +200,13 @@ impl ModuleLoader {
                             return;
                         }
 
-                        match Self::create_packed_module(&path) {
-                            Ok(module) => {
-                                info!("[Loader] Read module: {}", module.manifest.name());
-                                if let Some(cap) = module.manifest.custom_capabilities() {
-                                    info!(
-                                        "[{}] Available capabilities: {cap:#?}",
-                                        module.manifest.name()
-                                    );
-                                }
-
-                                self.loaded.insert(path, module);
-                            }
-                            Err(error) => log::error!("[Loader] {error}"),
-                        }
+                        self.load_plugin(path);
                     }
                 }
                 notify::EventKind::Remove(_) => {
                     for path in event.paths {
                         if let Some(module) = self.loaded.remove(&path) {
-                            info!("[Loader] Unload module: {}", module.manifest.name());
+                            log::info!("[Loader] Unload module: {}", module.manifest.name());
                         }
                     }
                 }
@@ -164,11 +219,11 @@ impl ModuleLoader {
                                 self.renamed = self.loaded.remove(&path);
                             }
                             RenameMode::To => {
-                                info!("[Loader] Rename module file: {}", path.display());
+                                log::info!("[Loader] Rename module file: {}", path.display());
                                 if let Some(renamed) = self.renamed.take() {
                                     self.loaded.insert(path, renamed);
                                 } else {
-                                    match Self::create_packed_module(&path) {
+                                    match Self::create_packed_module(path.clone()) {
                                         Ok(module) => {
                                             self.loaded.insert(path, module);
                                         }
@@ -188,24 +243,13 @@ impl ModuleLoader {
         }
     }
 
-    pub fn create_packed_module(path: impl AsRef<Path>) -> ModuleLoaderResult<PackedModule> {
-        let path = path.as_ref();
+    fn create_packed_module(path: PathBuf) -> Result<PackedModule, Box<dyn std::error::Error>> {
         //TODO check if a module was already loaded
-
-        let file_name = path
-            .file_name()
-            .ok_or_else(|| ModuleLoaderError::NotAFile(path.to_string_lossy().to_string()))
-            .and_then(|os| {
-                os.to_str().ok_or_else(|| {
-                    ModuleLoaderError::InvalidFileName(os.to_string_lossy().to_string())
-                })
-            })?;
-
-        let bytes = std::fs::read(path)?;
-        PackedModule::create(&bytes, file_name)
+        let bytes = std::fs::read(&path)?;
+        PackedModule::create(&bytes, path)
     }
 
-    pub fn get_raw_modules(&mut self) -> Vec<PackedModule> {
+    fn get_packed_plugins(&mut self) -> Vec<PackedModule> {
         let mut vec = vec![];
         self.loaded.drain().for_each(|(_, v)| {
             vec.push(v);
@@ -216,40 +260,27 @@ impl ModuleLoader {
 
 #[derive(Clone)]
 pub struct PackedModule {
-    pub path: String,
+    pub path: PathBuf,
     pub manifest: Manifest,
     pub config: Config,
     pub module: Vec<u8>,
 }
 
 impl PackedModule {
-    pub fn create(bytes: &[u8], file_name: &str) -> Result<Self, ModuleLoaderError> {
+    pub fn create(bytes: &[u8], path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         let mut reader = Cursor::new(bytes);
         let mut archive = ZipArchive::new(&mut reader)?;
 
         let manifest: Manifest = {
-            let mut zip_manifest = archive.by_name("manifest.toml").map_err(|e| match e {
-                zip::result::ZipError::FileNotFound => {
-                    ModuleLoaderError::MissingManifestFile(file_name.to_string())
-                }
-                other => ModuleLoaderError::Zip(other),
-            })?;
+            let mut zip_manifest = archive.by_name("manifest.toml")?;
             let mut temp = String::new();
             zip_manifest.read_to_string(&mut temp)?;
             toml::from_str(&temp)
-                .map_err(|err| ModuleLoaderError::InvalidManifest(file_name.to_string(), err))
         }?;
 
         let mut module = Vec::new();
-        {
-            let mut zip_module = archive.by_name("module.wasm").map_err(|e| match e {
-                zip::result::ZipError::FileNotFound => {
-                    ModuleLoaderError::MissingWasmFile(file_name.to_string())
-                }
-                other => ModuleLoaderError::Zip(other),
-            })?;
-            zip_module.read_to_end(&mut module)?;
-        }
+        let mut zip_module = archive.by_name("module.wasm")?;
+        zip_module.read_to_end(&mut module)?;
 
         //archive
         //    .by_name("config/definition.nc")
@@ -261,7 +292,7 @@ impl PackedModule {
         //    })?;
 
         Ok(Self {
-            path: file_name.to_string(),
+            path,
             manifest,
             module,
             config: Config::default(),

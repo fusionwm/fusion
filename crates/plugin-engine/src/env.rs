@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use wasmtime::component::{Component, Linker};
 
 use crate::{
@@ -9,8 +11,8 @@ use crate::{
 };
 
 #[allow(dead_code)]
-pub struct PluginEnvironment<I: InnerContext> {
-    path: String,
+pub(crate) struct PluginEnvironment<I: InnerContext> {
+    path: PathBuf,
     manifest: Manifest,
     component: Component,
     status: PluginStatus,
@@ -19,7 +21,7 @@ pub struct PluginEnvironment<I: InnerContext> {
 
 impl<I: InnerContext> PluginEnvironment<I> {
     pub const fn new(
-        path: String,
+        path: PathBuf,
         manifest: Manifest,
         component: Component,
         bindings: Bindings<I>,
@@ -34,8 +36,8 @@ impl<I: InnerContext> PluginEnvironment<I> {
     }
 
     #[must_use]
-    pub const fn path(&self) -> &str {
-        self.path.as_str()
+    pub fn path_owned(self) -> PathBuf {
+        self.path
     }
 
     #[must_use]
@@ -65,7 +67,7 @@ impl<I: InnerContext> PluginEnvironment<I> {
         Ok(General::instantiate(
             self.bindings.store_mut(),
             &self.component,
-            &linker,
+            linker,
         )?)
     }
 
