@@ -20,3 +20,22 @@ pub mod wasm {
 }
 
 pub const FILE_EXTENSION: &str = "fsp";
+
+#[macro_export]
+macro_rules! impl_untyped_plugin_binding {
+    ($struct:ty) => {
+        impl $crate::UntypedPluginBinding for $struct {
+            fn type_id(&self) -> core::any::TypeId {
+                core::any::TypeId::of::<Self>()
+            }
+
+            fn as_any(&self) -> &dyn core::any::Any {
+                self
+            }
+
+            fn as_any_mut(&mut self) -> &mut dyn core::any::Any {
+                self
+            }
+        }
+    };
+}

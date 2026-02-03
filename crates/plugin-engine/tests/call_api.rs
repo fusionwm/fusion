@@ -11,6 +11,7 @@ use tempfile::TempDir;
 use plugin_engine::{
     InnerContext, InnerContextFactory, PluginEngine, UntypedPluginBinding,
     context::ExecutionContext,
+    impl_untyped_plugin_binding,
     table::{CapabilityProvider, CapabilityWriteRules},
     wasm::{Component, Linker, Store},
 };
@@ -84,19 +85,7 @@ impl CapabilityProvider for TestsApiCapProvider {
     }
 }
 
-impl UntypedPluginBinding for TestsApi {
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
+impl_untyped_plugin_binding!(TestsApi);
 
 fn execute_cargo_fusion(working_dir: &Path) -> anyhow::Result<()> {
     let mut cmd = std::process::Command::new("cargo-fusion");
