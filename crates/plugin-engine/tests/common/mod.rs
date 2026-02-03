@@ -19,7 +19,8 @@ fn setup_logging() {
                 record.args()
             )
         })
-        .filter_level(LevelFilter::Info)
+        .filter_level(LevelFilter::Off)
+        .filter_module("plugin_engine", LevelFilter::Debug)
         .init();
 }
 

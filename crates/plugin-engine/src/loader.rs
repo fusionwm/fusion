@@ -229,6 +229,7 @@ impl InnerPluginLoader {
     fn handle_file_event(&mut self, mut event: notify::Event) {
         match event.kind {
             notify::EventKind::Create(_) => {
+                log::debug!("[Watcher] Detected file creation");
                 for path in event.paths {
                     let metadata = std::fs::metadata(&path)
                         .map_err(|error| {
@@ -245,6 +246,7 @@ impl InnerPluginLoader {
                 }
             }
             notify::EventKind::Remove(_) => {
+                log::debug!("[Watcher] Detected file removal");
                 for path in event.paths {
                     if let Some(module) = self.loaded.remove(&path) {
                         log::info!("[Loader] Unload module: {}", module.manifest.name());
@@ -252,6 +254,7 @@ impl InnerPluginLoader {
                 }
             }
             notify::EventKind::Modify(modify_kind) => {
+                log::debug!("[Watcher] Detected file modification");
                 let path = event.paths.remove(0);
                 //TODO Fix ModifyKind::Any when a file was modified
                 if let ModifyKind::Name(rename_mode) = modify_kind {

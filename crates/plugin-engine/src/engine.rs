@@ -58,8 +58,7 @@ pub struct PluginEngine<I: InnerContext> {
     captable: CapabilityTable<I>,
     plugins: HashMap<PluginID, PluginEnvironment<I>>,
     factory: I::Factory,
-    failed: Vec<FailedModule>,
-    hotswap: HashMap<PluginID, PluginEnvironment<I>>,
+    failed: Vec<FailedPlugin>,
 }
 
 pub struct BindingContext<'environment, I: InnerContext, B: UntypedPluginBinding> {
@@ -132,7 +131,6 @@ impl<I: InnerContext> PluginEngine<I> {
             plugins: HashMap::default(),
             factory,
             failed: vec![],
-            hotswap: HashMap::default(),
         })
     }
 
@@ -178,13 +176,18 @@ impl<I: InnerContext> PluginEngine<I> {
     fn prepare_plugin(
         &mut self,
         package: FusionPackage,
+        silent_link: bool,
     ) -> Result<(General, PluginID, PluginEnvironment<I>), Box<dyn std::error::Error>> {
         log::warn!("[{}] Preparing module", package.manifest.name());
 
         let plugin_id = PluginID(package.manifest.id().to_string());
         let mut linker = self.create_linker()?;
-        self.captable
-            .link(package.manifest.capabilities(), &mut linker, &plugin_id)?;
+        self.captable.link(
+            package.manifest.capabilities(),
+            &mut linker,
+            &plugin_id,
+            silent_link,
+        )?;
 
         let context = self.create_context(&package.manifest, package.config);
         let store = Store::new(&self.engine, context);
@@ -204,72 +207,70 @@ impl<I: InnerContext> PluginEngine<I> {
         Ok((general, plugin_id, env))
     }
 
-    fn prepare_plugin_direct(
+    fn call_general_api(
         &mut self,
-        package: FusionPackage,
-    ) -> Result<General, Box<dyn std::error::Error>> {
-        let (general, plugin_id, env) = self.prepare_plugin(package)?;
-        self.plugins.insert(plugin_id, env);
-        Ok(general)
-    }
-
-    fn prepare_plugin_hotswap(
-        &mut self,
-        package: FusionPackage,
-    ) -> Result<General, Box<dyn std::error::Error>> {
-        let (general, plugin_id, env) = self.prepare_plugin(package)?;
-        self.hotswap.insert(plugin_id, env);
-        Ok(general)
-    }
-
-    fn call_general_api(&mut self, general: &General, path: &Path, manifest: &Manifest) {
-        let (plugin_id, env) = unsafe {
-            // SAFETY: The plugin is guaranteed to be valid because it was just added in self.prepare_module.
-            self.plugins.iter_mut().last().unwrap_unchecked()
-        };
-
-        if let Err(err) = general.call_init(&mut env.bindings_mut().store) {
+        api: &General,
+        plugin_id: &PluginID,
+        env: &mut PluginEnvironment<I>,
+        path: &Path,
+        manifest: &Manifest,
+    ) {
+        if let Err(err) = api.call_init(&mut env.bindings_mut().store) {
             let plugin_id = plugin_id.clone();
             let path = path.to_path_buf();
             let manifest = manifest.clone();
 
             log::error!("[{}] Unable to initialize plugin: {err}", manifest.name(),);
-            self.plugins.remove(&plugin_id);
             self.captable
                 .remove_observing(manifest.capabilities(), &plugin_id);
-            self.failed.push(FailedModule { path, manifest });
+            self.failed.push(FailedPlugin { path, manifest });
         }
     }
 
     pub fn load_packages(&mut self) {
-        let packages = self.loader.get_packages().unwrap();
+        let Ok(packages) = self.loader.get_packages() else {
+            log::error!("[Engine] Failed to get packages from loader");
+            return;
+        };
 
         for package in packages {
-            let path = package.path.clone();
-            let manifest = package.manifest.clone();
+            let id = package.manifest.id().clone();
+            let name = package.manifest.name().to_string();
+            let silent_link = self.plugins.contains_key(&id);
 
-            if self.plugins.contains_key(package.manifest.id()) {
-                log::debug!("Start hotswapping");
-                match self.prepare_plugin_hotswap(package) {
-                    Ok(api) => {
-                        self.call_general_api(&api, &path, &manifest);
-                        let plugin = self.hotswap.remove(manifest.id()).unwrap();
-                        self.plugins.insert(manifest.id().clone(), plugin);
-                    }
-                    Err(err) => {
-                        log::error!("[Engine] Unable to hotswap plugin: {err}");
-                    }
+            log::debug!(
+                "[Engine] {} plugin: {}",
+                if silent_link {
+                    "Hotswapping"
+                } else {
+                    "Loading"
+                },
+                name
+            );
+
+            match self.prepare_plugin(package.clone(), silent_link) {
+                Ok((api, plugin_id, mut env)) => {
+                    self.call_general_api(
+                        &api,
+                        &plugin_id,
+                        &mut env,
+                        &package.path,
+                        &package.manifest,
+                    );
+                    self.plugins.insert(id, env);
                 }
-            } else {
-                log::debug!("[Engine] Loading module: {}", package.manifest.name());
-
-                match self.prepare_plugin_direct(package) {
-                    Ok(api) => {
-                        self.call_general_api(&api, &path, &manifest);
-                    }
-                    Err(err) => {
-                        log::error!("[{}] Unable to prepare module: {}", manifest.name(), err);
-                        self.failed.push(FailedModule { path, manifest });
+                Err(err) => {
+                    log::error!(
+                        "[{}] Unable to {} plugin: {}",
+                        name,
+                        if silent_link { "hotswap" } else { "prepare" },
+                        err
+                    );
+                    if !silent_link {
+                        self.failed.push(FailedPlugin {
+                            path: package.path,
+                            manifest: package.manifest,
+                        });
                     }
                 }
             }
@@ -289,7 +290,7 @@ impl<I: InnerContext> PluginEngine<I> {
         self.plugins.keys().cloned().collect()
     }
 
-    pub const fn get_failed_plugins(&self) -> &[FailedModule] {
+    pub const fn get_failed_plugins(&self) -> &[FailedPlugin] {
         self.failed.as_slice()
     }
 
@@ -334,12 +335,12 @@ impl<I: InnerContext> Bindings<I> {
     }
 }
 
-pub struct FailedModule {
+pub struct FailedPlugin {
     path: PathBuf,
     manifest: Manifest,
 }
 
-impl FailedModule {
+impl FailedPlugin {
     #[must_use]
     pub const fn path(&self) -> &PathBuf {
         &self.path

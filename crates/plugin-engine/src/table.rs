@@ -148,16 +148,19 @@ impl<I: InnerContext> CapabilityTable<I> {
         capabilities: &[String],
         linker: &mut Linker<ExecutionContext<I>>,
         plugin_id: &PluginID,
+        silent: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         General::add_to_linker::<_, ExecutionContext<I>>(linker, |store| store)?;
         for requested in capabilities {
             if let Some(capability) = self.inner.get_mut(requested) {
-                if capability.is_allowed_to_use() {
-                    capability.provider.link_functions(linker);
-                    capability.checker.add_writer_if_possible(plugin_id);
-                } else {
-                    panic!("Capability {requested} is not allowed to use");
+                if !silent {
+                    if capability.is_allowed_to_use() {
+                        capability.checker.add_writer_if_possible(plugin_id);
+                    } else {
+                        panic!("Capability {requested} is not allowed to use");
+                    }
                 }
+                capability.provider.link_functions(linker);
             } else {
                 //TODO
                 let error = format!("[TODO] Requested capability {requested} is missing");

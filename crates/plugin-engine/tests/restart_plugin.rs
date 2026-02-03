@@ -25,7 +25,7 @@ fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
         CallApiCapProvider,
     );
 
-    engine.load_package(PLUGINS_PATH.path().join("plugin_1.0.fsp"));
+    engine.load_package(PLUGINS_PATH.path().join("call_api_plugin_1.0.fsp"));
 
     wait_one_second(&mut engine);
 
