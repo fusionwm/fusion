@@ -29,8 +29,8 @@ plugin-engine = { path = "crates/plugin-engine" }
 cargo-fusion = {path = "crates/cargo-fusion"}
 
 ### Other
-wasmtime = { version = "41.0.1", features = ["async"] }
-wasmtime-wasi = { version = "41.0.1" }
+wasmtime = { version = "41.0.2", features = ["async"] }
+wasmtime-wasi = { version = "41.0.2" }
 toml = "0.9.11"
 serde = { version = "1.0.228", features = ["derive"] }
 zip = "7.2.0"
@@ -49,7 +49,7 @@ clap = { version = "4.5.56", features = ["derive"] }
 #Https
 http = "1.4.0"
 hyper = { version = "1.8.1", features = ["client", "http1", "http2"] }
-hyper-util = { version = "0.1.19", features = [
+hyper-util = { version = "0.1.20", features = [
     "client-legacy",
     "client",
     "http1",
