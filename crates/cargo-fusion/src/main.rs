@@ -1,3 +1,4 @@
+use anyhow::Context;
 use cargo_manifest::{Manifest, MaybeInherited};
 use cargo_metadata::MetadataCommand;
 use clap::{Parser, Subcommand};
@@ -32,6 +33,7 @@ struct BuildEnvironment {
     config: PathBuf,
     wasm: PathBuf,
     output: PathBuf,
+    output_file: PathBuf,
     is_release: bool,
 }
 
@@ -51,15 +53,7 @@ impl BuildEnvironment {
             format!("{package_name}_{package_version}")
         };
 
-        let target = if let Some(output) = output {
-            if output.starts_with("..") {
-                PathBuf::new().join(root).join(output)
-            } else if output.starts_with('.') {
-                root.into()
-            } else {
-                output.into()
-            }
-        } else {
+        let target = {
             let metadata = MetadataCommand::new().exec()?;
             metadata.target_directory.into_std_path_buf()
         };
@@ -74,16 +68,26 @@ impl BuildEnvironment {
             .join(package_name)
             .with_extension("wasm");
 
-        let output = target
-            .join("plugins")
-            .join(&plugin_name)
-            .with_extension("fus");
+        let output = if let Some(output) = output {
+            if output.starts_with("..") {
+                PathBuf::new().join(root).join(output)
+            } else if output.starts_with('.') {
+                root.into()
+            } else {
+                output.into()
+            }
+        } else {
+            target.join("plugins")
+        };
+
+        let output_file = output.join(&plugin_name).with_extension("fsp");
 
         Ok(Self {
             manifest,
             config,
             wasm,
             output,
+            output_file,
             is_release,
         })
     }
@@ -109,34 +113,51 @@ fn main() -> anyhow::Result<()> {
         Commands::Build { release, output } => {
             let build = BuildEnvironment::new(&plugin_root, output, release)?;
 
-            // 4. Проверки и копирование манифеста
             let manifest = read_manifest(&build.manifest)?;
 
-            // 6. Сборка WASM
             println!("Building WASM module...");
             cargo_build(build.cargo_flags())?;
 
             let wasm = read_wasm(&build.wasm)?;
-
-            println!("Done! Output: {}", build.output.display());
 
             let Some(output_dir) = build.output.parent() else {
                 anyhow::bail!("Invalid output path");
             };
             std::fs::create_dir_all(output_dir)?;
 
-            let mut writer = ZipWriter::new(std::fs::File::create(build.output)?);
-            writer.start_file("manifest.toml", FileOptions::DEFAULT)?;
-            writer.write_all(&manifest)?;
+            create_zip(&manifest, &wasm, &build.config, &build.output_file)?;
 
-            writer.start_file("plugin.wasm", FileOptions::DEFAULT)?;
-            writer.write_all(&wasm)?;
-
-            write_config(&mut writer, &build.config)?;
+            println!(
+                "Done! Output: {}",
+                build
+                    .output_file
+                    .canonicalize()
+                    .with_context(|| format!(
+                        "Cannot canonicalize output path: {}",
+                        build.output_file.display()
+                    ))?
+                    .display()
+            );
         }
     }
 
     Ok(())
+}
+
+fn create_zip(
+    manifest: &[u8],
+    wasm: &[u8],
+    config_path: &Path,
+    output_file: &Path,
+) -> anyhow::Result<()> {
+    let mut writer = ZipWriter::new(std::fs::File::create(output_file)?);
+    writer.start_file("manifest.toml", FileOptions::DEFAULT)?;
+    writer.write_all(manifest)?;
+
+    writer.start_file("module.wasm", FileOptions::DEFAULT)?;
+    writer.write_all(wasm)?;
+
+    write_config(&mut writer, config_path)
 }
 
 fn read_manifest(manifest_path: &Path) -> anyhow::Result<Vec<u8>> {
@@ -176,12 +197,16 @@ fn write_config(writer: &mut ZipWriter<File>, config_path: &Path) -> anyhow::Res
 }
 
 fn cargo_build<'a, I: IntoIterator<Item = &'a str>>(args: I) -> anyhow::Result<()> {
-    std::process::Command::new("cargo")
+    let status = std::process::Command::new("cargo")
         .arg("build")
         .arg("--target")
         .arg("wasm32-wasip2")
         .args(args)
-        .spawn()?;
+        .status()?;
+
+    if !status.success() {
+        anyhow::bail!("Cargo build failed with status: {status}");
+    }
 
     Ok(())
 }
