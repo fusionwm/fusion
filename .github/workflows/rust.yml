@@ -25,15 +25,21 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - uses: actions/checkout@v4
+    - name: Install system dependencies
+      run: sudo apt-get install libxkbcommon-dev libwayland-dev
     - name: Download mold linker
       run: sudo apt install -y mold
     - name: Build
       run: cargo build --verbose
 
-  coverage:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Install system dependencies
+        run: sudo apt-get install libxkbcommon-dev libwayland-dev
+      - name: Download mold linker
+        run: sudo apt install -y mold
       - name: Install Rust
         run: rustup update stable
       - name: Install cargo-fusion
