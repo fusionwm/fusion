@@ -8,8 +8,8 @@ use crate::{
     context::tests_api::{Empty, EmptyFactory, TestsApi, TestsApiCapProvider},
 };
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn call_api() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn call_api() -> Result<(), Box<dyn std::error::Error>> {
     initialize();
     let mut engine = PluginEngine::<Empty>::new(
         EmptyFactory,

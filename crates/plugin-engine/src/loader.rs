@@ -3,7 +3,7 @@ use std::{
     io::{Cursor, Read},
     path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, Mutex,
         mpsc::{Receiver, Sender},
     },
     time::Duration,
@@ -14,7 +14,6 @@ use notify::{
     RecursiveMode, Watcher,
     event::{ModifyKind, RenameMode},
 };
-use tokio::sync::Mutex;
 use zip::ZipArchive;
 
 use crate::{FILE_EXTENSION, config::Config, engine::InnerContext, manifest::Manifest};
@@ -57,53 +56,43 @@ enum Answer {
     GetPlugins(Vec<FusionPackage>),
 }
 
-async fn preload_packages<I: InnerContext>(loader: &Arc<Mutex<InnerPluginLoader>>) {
-    let mut loader = loader.lock().await;
+fn preload_packages<I: InnerContext>(loader: &Arc<Mutex<InnerPluginLoader>>) {
+    let mut loader = loader.lock().unwrap();
     log::debug!("[Loader] Preloading packages");
-    if let Err(e) = loader.preload_plugins(I::plugins_path()).await {
+    if let Err(e) = loader.preload_plugins(&I::plugins_path()) {
         log::error!("[Loader] Preload failed: {e:?}");
-        return;
     }
 }
 
-async fn run_manual_loader_loop<I: InnerContext>(
-    loader: Arc<Mutex<InnerPluginLoader>>,
-    preload: bool,
-) {
+fn run_manual_loader_loop<I: InnerContext>(loader: &Arc<Mutex<InnerPluginLoader>>, preload: bool) {
     log::debug!("[Loader] Starting manual loader loop");
 
     if preload {
-        preload_packages::<I>(&loader).await;
+        preload_packages::<I>(loader);
     }
 
-    let mut interval = tokio::time::interval(Duration::from_millis(10));
     loop {
-        interval.tick().await;
-
+        std::thread::sleep(Duration::from_millis(10));
         if let Ok(mut loader) = loader.try_lock() {
             loader.handle_engine_requests();
         }
     }
 }
 
-async fn run_loader_loop<I: InnerContext>(loader: Arc<Mutex<InnerPluginLoader>>, preload: bool) {
+fn run_loader_loop<I: InnerContext>(loader: &Arc<Mutex<InnerPluginLoader>>, preload: bool) {
     log::debug!("[Loader] Starting loader loop");
 
     if preload {
-        preload_packages::<I>(&loader).await;
+        preload_packages::<I>(loader);
     }
 
-    let mut interval = tokio::time::interval(Duration::from_millis(10));
     loop {
-        interval.tick().await;
-
+        std::thread::sleep(Duration::from_millis(10));
         if let Ok(mut loader) = loader.try_lock() {
             loader.handle_events();
         }
     }
 }
-
-type TokioReceiver<T> = tokio::sync::mpsc::Receiver<T>;
 
 pub(crate) struct PluginLoader {
     _loader: Arc<Mutex<InnerPluginLoader>>,
@@ -118,14 +107,17 @@ impl PluginLoader {
         let (answer_sender, answer_receiver) = std::sync::mpsc::channel();
         let loader = InnerPluginLoader::new(request_receiver, answer_sender, &I::plugins_path())?;
         let loader = Arc::new(Mutex::new(loader));
-        if config.manual_loading {
-            tokio::task::spawn(run_manual_loader_loop::<I>(
-                loader.clone(),
-                config.enable_preload,
-            ));
-        } else {
-            tokio::task::spawn(run_loader_loop::<I>(loader.clone(), config.enable_preload));
-        }
+        let loader_clone = loader.clone();
+        std::thread::Builder::new()
+            .name("Plugin loader".into())
+            .spawn(move || {
+                if config.manual_loading {
+                    run_manual_loader_loop::<I>(&loader_clone, config.enable_preload);
+                } else {
+                    run_loader_loop::<I>(&loader_clone, config.enable_preload);
+                }
+            })?;
+
         Ok(Self {
             _loader: loader,
             request_sender,
@@ -153,10 +145,12 @@ impl PluginLoader {
 }
 
 struct InnerPluginLoader {
+    _watcher: notify::RecommendedWatcher,
+    watcher_rx: Receiver<Result<notify::Event, notify::Error>>,
+
     request_receiver: Receiver<Request>,
     answer_sender: Sender<Answer>,
 
-    file_receiver: TokioReceiver<notify::Result<notify::Event>>,
     loaded: HashMap<PathBuf, FusionPackage>,
     renamed: Option<FusionPackage>,
 }
@@ -167,22 +161,15 @@ impl InnerPluginLoader {
         answer_sender: Sender<Answer>,
         plugins_path: &Path,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let (file_tx, file_receiver) = tokio::sync::mpsc::channel(32);
-
         let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
         let mut watcher = notify::recommended_watcher(tx)?;
         watcher.watch(plugins_path, RecursiveMode::NonRecursive)?;
 
-        tokio::task::spawn_blocking(move || {
-            for event in rx {
-                let _ = file_tx.blocking_send(event);
-            }
-        });
-
         Ok(Self {
+            _watcher: watcher,
+            watcher_rx: rx,
             request_receiver,
             answer_sender,
-            file_receiver,
             loaded: HashMap::new(),
             renamed: None,
         })
@@ -206,17 +193,19 @@ impl InnerPluginLoader {
         }
     }
 
-    async fn preload_plugins(
-        &mut self,
-        plugins_path: PathBuf,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut entries = tokio::fs::read_dir(&plugins_path).await?;
+    fn preload_plugins(&mut self, plugins_path: &Path) -> anyhow::Result<()> {
+        let entries = std::fs::read_dir(plugins_path)?;
 
-        while let Some(entry) = entries.next_entry().await? {
-            let path = entry.path();
+        for entry in entries {
+            match entry {
+                Ok(entry) => {
+                    let path = entry.path();
 
-            if path.is_file() && path.extension().is_some_and(|ext| ext == FILE_EXTENSION) {
-                self.load_package(path);
+                    if path.is_file() && path.extension().is_some_and(|ext| ext == FILE_EXTENSION) {
+                        self.load_package(path);
+                    }
+                }
+                Err(err) => log::error!("[Loader] {err}"),
             }
         }
 
@@ -237,71 +226,75 @@ impl InnerPluginLoader {
         }
     }
 
+    fn handle_file_event(&mut self, mut event: notify::Event) {
+        match event.kind {
+            notify::EventKind::Create(_) => {
+                for path in event.paths {
+                    let metadata = std::fs::metadata(&path)
+                        .map_err(|error| {
+                            log::error!("[Loader] {error}");
+                        })
+                        .ok()
+                        .unwrap();
+
+                    if !metadata.is_file() {
+                        return;
+                    }
+
+                    self.load_package(path);
+                }
+            }
+            notify::EventKind::Remove(_) => {
+                for path in event.paths {
+                    if let Some(module) = self.loaded.remove(&path) {
+                        log::info!("[Loader] Unload module: {}", module.manifest.name());
+                    }
+                }
+            }
+            notify::EventKind::Modify(modify_kind) => {
+                let path = event.paths.remove(0);
+                //TODO Fix ModifyKind::Any when a file was modified
+                if let ModifyKind::Name(rename_mode) = modify_kind {
+                    match rename_mode {
+                        RenameMode::From => {
+                            self.renamed = self.loaded.remove(&path);
+                        }
+                        RenameMode::To => {
+                            log::info!("[Loader] Rename module file: {}", path.display());
+                            if let Some(renamed) = self.renamed.take() {
+                                self.loaded.insert(path, renamed);
+                            } else {
+                                match Self::create_fusion_package(path.clone()) {
+                                    Ok(module) => {
+                                        self.loaded.insert(path, module);
+                                    }
+                                    Err(err) => {
+                                        log::error!("[Loader] {err}");
+                                    }
+                                }
+                            }
+                            //let renamed = self.renamed.take().expect("Unreachable!");
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn handle_events(&mut self) {
         self.handle_engine_requests();
 
-        while let Ok(event) = self.file_receiver.try_recv() {
-            let mut event = match event {
-                Ok(events) => events,
-                Err(error) => {
-                    log::error!("[Loader] {error}");
-                    return;
+        match self.watcher_rx.recv() {
+            Ok(event) => match event {
+                Ok(event) => {
+                    self.handle_file_event(event);
                 }
-            };
-
-            match event.kind {
-                notify::EventKind::Create(_) => {
-                    for path in event.paths {
-                        let metadata = std::fs::metadata(&path)
-                            .map_err(|error| {
-                                log::error!("[Loader] {error}");
-                            })
-                            .ok()
-                            .unwrap();
-
-                        if !metadata.is_file() {
-                            return;
-                        }
-
-                        self.load_package(path);
-                    }
-                }
-                notify::EventKind::Remove(_) => {
-                    for path in event.paths {
-                        if let Some(module) = self.loaded.remove(&path) {
-                            log::info!("[Loader] Unload module: {}", module.manifest.name());
-                        }
-                    }
-                }
-                notify::EventKind::Modify(modify_kind) => {
-                    let path = event.paths.remove(0);
-                    //TODO Fix ModifyKind::Any when a file was modified
-                    if let ModifyKind::Name(rename_mode) = modify_kind {
-                        match rename_mode {
-                            RenameMode::From => {
-                                self.renamed = self.loaded.remove(&path);
-                            }
-                            RenameMode::To => {
-                                log::info!("[Loader] Rename module file: {}", path.display());
-                                if let Some(renamed) = self.renamed.take() {
-                                    self.loaded.insert(path, renamed);
-                                } else {
-                                    match Self::create_fusion_package(path.clone()) {
-                                        Ok(module) => {
-                                            self.loaded.insert(path, module);
-                                        }
-                                        Err(err) => {
-                                            log::error!("[Loader] {err}");
-                                        }
-                                    }
-                                }
-                                //let renamed = self.renamed.take().expect("Unreachable!");
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                _ => {}
+                Err(err) => log::error!("[Loader] Error receiving file event: {err}"),
+            },
+            Err(err) => {
+                log::error!("[Loader] Error watching plugins directory: {err}");
             }
         }
     }

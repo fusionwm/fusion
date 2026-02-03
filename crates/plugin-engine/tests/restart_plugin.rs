@@ -8,8 +8,8 @@ use crate::{
 mod common;
 mod context;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
     initialize();
 
     let mut engine = PluginEngine::<Empty>::new(
