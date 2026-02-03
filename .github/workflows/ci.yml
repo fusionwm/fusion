@@ -1,0 +1,28 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install system dependencies
+        run: sudo apt-get install libxkbcommon-dev libwayland-dev libudev-dev
+      - name: Install mold linker
+        run: sudo apt install -y mold
+      - name: Install Rust
+        run: rustup update stable
+      - name: Install cargo-fusion
+        run: cargo install --path crates/cargo-fusion
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate code coverage
+        run: cargo llvm-cov --html
