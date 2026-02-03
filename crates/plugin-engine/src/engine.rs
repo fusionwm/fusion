@@ -3,7 +3,7 @@ use crate::{
     context::ExecutionContext,
     env::PluginEnvironment,
     general::General,
-    loader::{PackedModule, PluginLoader},
+    loader::{FusionPackage, LoaderConfig, PluginLoader},
     manifest::Manifest,
     table::{CapabilityProvider, CapabilityTable, CapabilityWriteRules},
 };
@@ -94,12 +94,15 @@ impl<I: InnerContext> PluginEngine<I> {
         Ok(())
     }
 
-    pub fn new(factory: I::Factory) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(
+        factory: I::Factory,
+        loader_config: LoaderConfig,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         log::debug!("[Engine] Initializing plugin engine");
         Self::ensure_directory_exists()?;
 
         let engine = Engine::default();
-        let loader = PluginLoader::new::<I>()?;
+        let loader = PluginLoader::new::<I>(loader_config)?;
 
         Ok(Self {
             engine,
@@ -152,7 +155,7 @@ impl<I: InnerContext> PluginEngine<I> {
 
     fn prepare_module(
         &mut self,
-        packed: PackedModule,
+        packed: FusionPackage,
     ) -> Result<General, Box<dyn std::error::Error>> {
         log::warn!("[{}] Preparing module", packed.manifest.name());
 
@@ -222,6 +225,14 @@ impl<I: InnerContext> PluginEngine<I> {
     pub fn get_plugins(&self) -> Vec<PluginID> {
         self.plugins.keys().collect()
     }
+
+    pub const fn get_failed_plugins(&self) -> &[FailedModule] {
+        self.failed.as_slice()
+    }
+
+    pub fn load_package(&mut self, path: PathBuf) {
+        self.loader.load_plugin(path).unwrap();
+    }
 }
 
 pub trait UntypedPluginBinding: 'static {
@@ -263,4 +274,16 @@ impl<I: InnerContext> Bindings<I> {
 pub struct FailedModule {
     path: PathBuf,
     manifest: Manifest,
+}
+
+impl FailedModule {
+    #[must_use]
+    pub const fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    #[must_use]
+    pub const fn manifest(&self) -> &Manifest {
+        &self.manifest
+    }
 }

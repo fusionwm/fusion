@@ -11,7 +11,8 @@ members = [
     "examples/rust",
     "crates/cargo-fusion",
 
-    "crates/plugin-engine/tests/tests_plugins/plugin",
+    # Tests
+    "crates/plugin-engine/tests/tests_plugins/*",
 ]
 
 [profile.release]
