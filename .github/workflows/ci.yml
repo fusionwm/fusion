@@ -41,6 +41,7 @@ jobs:
             libinput-dev \
             libudev-dev \
             libseat-dev \
+            libpixman-1-dev \
             pkg-config \
             mold
         
