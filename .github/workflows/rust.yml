@@ -25,6 +25,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - uses: actions/checkout@v4
+    - name: Download mold linker
+      run: apt install mold
     - name: Build
       run: cargo build --verbose
 
