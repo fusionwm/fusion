@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use plugin_engine::engine::{InnerContext, InnerContextFactory};
+use plugin_engine::{InnerContext, InnerContextFactory};
 use slotmap::{SlotMap, new_key_type};
 use smithay::desktop::{Space, Window};
 use wasmtime::component::HasData;
@@ -105,16 +105,26 @@ impl HasData for CompositorContext {
     type Data<'a> = &'a mut CompositorContext;
 }
 
+fn get_config_dir() -> std::path::PathBuf {
+    let root = dirs::config_dir().unwrap().join("fusion");
+    root
+}
+
 impl InnerContext for CompositorContext {
     type Factory = CompositorContextFactory;
 
-    fn config_path() -> std::path::PathBuf {}
+    fn config_path() -> std::path::PathBuf {
+        let root = get_config_dir();
+        root.join("config")
+    }
 
     fn logs_path() -> std::path::PathBuf {
-        todo!()
+        let root = get_config_dir();
+        root.join("logs")
     }
 
     fn plugins_path() -> std::path::PathBuf {
-        todo!()
+        let root = get_config_dir();
+        root.join("plugins")
     }
 }

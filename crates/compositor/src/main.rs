@@ -9,6 +9,22 @@ use crate::compositor::window::WinitBackend;
 use smithay::reexports::calloop::EventLoop;
 use tracy_client::Client;
 
+fn setup_logging() {
+    use std::io::Write;
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "[{} {}] {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter_level(log::LevelFilter::Warn)
+        .init();
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Client::start();
@@ -20,7 +36,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //event_loop.run(None, &mut loader_data, |_| {})?;
 
-    // Используем EventLoop для обработки событий от разных источников
     let mut event_loop: EventLoop<compositor::data::Data<WinitBackend>> = EventLoop::try_new()?;
 
     let backend = WinitBackend::new().unwrap();

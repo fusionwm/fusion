@@ -61,11 +61,7 @@ use crate::compositor::{
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
 };
 
-use module_engine::{
-    engine::{InnerContextFactory, ModuleEngine},
-    loader::ModuleLoader,
-    table::CapabilityWriteRules,
-};
+use plugin_engine::{InnerContextFactory, PluginEngine, table::CapabilityWriteRules};
 
 pub struct App<B: Backend + 'static> {
     pub compositor_state: CompositorState,
@@ -82,7 +78,7 @@ pub struct App<B: Backend + 'static> {
 
     pub backend: B,
 
-    pub engine: ModuleEngine<CompositorContext>,
+    pub engine: PluginEngine<CompositorContext>,
 
     pub globals: Arc<Mutex<CompositorGlobals>>,
 }
@@ -149,7 +145,7 @@ impl<B: Backend> App<B> {
         };
 
         // Настройка модулей
-        let mut engine = ModuleEngine::new(factory)?;
+        let mut engine = PluginEngine::new(factory)?;
         engine.add_capability(
             "compositor.window",
             CapabilityWriteRules::SingleWrite,

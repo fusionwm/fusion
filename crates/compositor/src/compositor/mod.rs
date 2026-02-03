@@ -162,7 +162,7 @@ pub fn init_compositor(
                             state.loop_signal.stop();
                         }
                         WinitEvent::Redraw => {
-                            state.engine.tick();
+                            state.engine.load_modules();
                         }
                     });
             }

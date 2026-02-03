@@ -1,8 +1,7 @@
-use std::any::TypeId;
-
 use plugin_engine::{
+    UntypedPluginBinding,
     context::ExecutionContext,
-    engine::UntypedPluginBinding,
+    impl_untyped_plugin_binding,
     table::CapabilityProvider,
     wasm::{Linker, bindgen},
 };
@@ -32,24 +31,12 @@ impl CapabilityProvider for GeneralCapabilityProvider {
         store: &mut wasmtime::Store<ExecutionContext<Self::Inner>>,
         component: &wasmtime::component::Component,
         linker: &Linker<ExecutionContext<Self::Inner>>,
-    ) -> Box<dyn plugin_engine::engine::UntypedPluginBinding> {
+    ) -> Box<dyn UntypedPluginBinding> {
         Box::new(Compositor::instantiate(&mut *store, component, linker).unwrap())
     }
 }
 
-impl UntypedPluginBinding for Compositor {
-    fn type_id(&self) -> std::any::TypeId {
-        TypeId::of::<Self>()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-}
+impl_untyped_plugin_binding!(Compositor);
 
 impl CompositorContext {
     #[inline]
