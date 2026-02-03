@@ -40,7 +40,7 @@ fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     {
-        let plugin_id = *engine.get_plugins().first().unwrap();
+        let plugin_id = engine.get_plugins().first().unwrap().clone();
         engine.restart_module(plugin_id);
     }
 

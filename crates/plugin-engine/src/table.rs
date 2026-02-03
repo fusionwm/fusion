@@ -64,20 +64,20 @@ pub struct WriterCounter {
 }
 
 impl WriterCounter {
-    fn add_writer_if_possible(&mut self, plugin_id: PluginID) {
+    fn add_writer_if_possible(&mut self, plugin_id: &PluginID) {
         if self.max == 0 {
             return;
         }
         self.current += 1;
-        self.writers.insert(plugin_id);
+        self.writers.insert(plugin_id.clone());
     }
 
-    fn remove_writer(&mut self, plugin_id: PluginID) {
+    fn remove_writer(&mut self, plugin_id: &PluginID) {
         if self.max == 0 {
             return;
         }
 
-        if !self.writers.remove(&plugin_id) {
+        if !self.writers.remove(plugin_id) {
             return;
         }
 
@@ -144,15 +144,17 @@ impl<I: InnerContext> CapabilityTable<I> {
     }
 
     pub fn link(
-        &self,
+        &mut self,
         capabilities: &[String],
         linker: &mut Linker<ExecutionContext<I>>,
+        plugin_id: &PluginID,
     ) -> Result<(), Box<dyn std::error::Error>> {
         General::add_to_linker::<_, ExecutionContext<I>>(linker, |store| store)?;
         for requested in capabilities {
-            if let Some(capability) = self.inner.get(requested) {
+            if let Some(capability) = self.inner.get_mut(requested) {
                 if capability.is_allowed_to_use() {
                     capability.provider.link_functions(linker);
+                    capability.checker.add_writer_if_possible(plugin_id);
                 } else {
                     panic!("Capability {requested} is not allowed to use");
                 }
@@ -166,7 +168,7 @@ impl<I: InnerContext> CapabilityTable<I> {
         Ok(())
     }
 
-    pub fn remove_observing(&mut self, capabilities: &[String], plugin_id: PluginID) {
+    pub fn remove_observing(&mut self, capabilities: &[String], plugin_id: &PluginID) {
         for requested in capabilities {
             // SAFETY: We have already checked that the capability exists
             let capability = unsafe { self.inner.get_mut(requested).unwrap_unchecked() };
@@ -180,12 +182,10 @@ impl<I: InnerContext> CapabilityTable<I> {
         bindings: &mut Bindings<I>,
         component: &Component,
         linker: &mut Linker<ExecutionContext<I>>,
-        plugin_id: PluginID,
     ) {
         for requested in capabilities {
             // SAFETY: We have already checked that the capability exists
             let capability = unsafe { self.inner.get_mut(requested).unwrap_unchecked() };
-            capability.checker.add_writer_if_possible(plugin_id);
             let binding =
                 capability
                     .provider

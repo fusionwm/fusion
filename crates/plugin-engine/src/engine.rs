@@ -7,7 +7,6 @@ use crate::{
     manifest::Manifest,
     table::{CapabilityProvider, CapabilityTable, CapabilityWriteRules},
 };
-use slotmap::{SlotMap, new_key_type};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -30,13 +29,26 @@ pub trait InnerContext: Send + Sync + Sized + 'static {
     fn plugins_path() -> PathBuf;
 }
 
-new_key_type! { pub struct PluginID; }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PluginID(String);
+
+impl From<String> for PluginID {
+    fn from(value: String) -> Self {
+        PluginID(value)
+    }
+}
+
+impl From<&str> for PluginID {
+    fn from(value: &str) -> Self {
+        PluginID(value.to_string())
+    }
+}
 
 pub struct PluginEngine<I: InnerContext> {
     engine: Engine,
     loader: PluginLoader,
     captable: CapabilityTable<I>,
-    plugins: SlotMap<PluginID, PluginEnvironment<I>>,
+    plugins: HashMap<PluginID, PluginEnvironment<I>>,
     factory: I::Factory,
     failed: Vec<FailedModule>,
 }
@@ -108,7 +120,7 @@ impl<I: InnerContext> PluginEngine<I> {
             engine,
             loader,
             captable: CapabilityTable::default(),
-            plugins: SlotMap::default(),
+            plugins: HashMap::default(),
             factory,
             failed: vec![],
         })
@@ -130,7 +142,7 @@ impl<I: InnerContext> PluginEngine<I> {
     ) -> BindingContext<'_, I, B> {
         let capability = self.captable.get_capability_by_name(capability);
         let plugin_id = capability.writers().iter().next().unwrap();
-        let environment = self.plugins.get_mut(*plugin_id).unwrap();
+        let environment = self.plugins.get_mut(plugin_id).unwrap();
         let binding_id = TypeId::of::<B>();
         let bindings = environment.bindings_mut();
         let binding = bindings.inner.get(&binding_id).unwrap();
@@ -155,31 +167,32 @@ impl<I: InnerContext> PluginEngine<I> {
 
     fn prepare_module(
         &mut self,
-        packed: FusionPackage,
+        package: FusionPackage,
     ) -> Result<General, Box<dyn std::error::Error>> {
-        log::warn!("[{}] Preparing module", packed.manifest.name());
+        log::warn!("[{}] Preparing module", package.manifest.name());
 
+        let plugin_id = PluginID(package.manifest.id().to_string());
         let mut linker = self.create_linker()?;
         self.captable
-            .link(packed.manifest.capabilities(), &mut linker)?;
+            .link(package.manifest.capabilities(), &mut linker, &plugin_id)?;
 
-        let context = self.create_context(&packed.manifest, packed.config);
+        let context = self.create_context(&package.manifest, package.config);
         let store = Store::new(&self.engine, context);
-        let component = Component::from_binary(&self.engine, &packed.module)?;
+        let component = Component::from_binary(&self.engine, &package.module)?;
         let _ = linker.define_unknown_imports_as_traps(&component);
 
-        let plugin_id = self.plugins.insert(PluginEnvironment::new(
-            packed.path,
-            packed.manifest,
+        let mut env = PluginEnvironment::new(
+            package.path,
+            package.manifest,
             component,
             Bindings::new(store),
-        ));
+        );
 
-        // SAFETY: The plugin ID is guaranteed to be valid because it was just inserted.
-        let env = unsafe { self.plugins.get_mut(plugin_id).unwrap_unchecked() };
-        env.create_bindings(&mut linker, &mut self.captable, plugin_id);
+        env.create_bindings(&mut linker, &mut self.captable);
+        let general = env.instantiate_general_api(&linker)?;
 
-        env.instantiate_general_api(&linker)
+        self.plugins.insert(plugin_id, env);
+        Ok(general)
     }
 
     pub fn load_modules(&mut self) {
@@ -198,10 +211,13 @@ impl<I: InnerContext> PluginEngine<I> {
                     };
 
                     if let Err(err) = general.call_init(&mut env.bindings_mut().store) {
+                        let plugin_id = plugin_id.clone();
+                        //let _ = env;
+
                         log::error!("[{}] Unable to initialize module: {}", manifest.name(), err);
-                        self.plugins.remove(plugin_id);
+                        self.plugins.remove(&plugin_id);
                         self.captable
-                            .remove_observing(manifest.capabilities(), plugin_id);
+                            .remove_observing(manifest.capabilities(), &plugin_id);
                         self.failed.push(FailedModule { path, manifest });
                     }
                 }
@@ -215,15 +231,15 @@ impl<I: InnerContext> PluginEngine<I> {
 
     pub fn restart_module(&mut self, plugin_id: impl Into<PluginID>) {
         let plugin_id = plugin_id.into();
-        let env = self.plugins.remove(plugin_id).unwrap();
+        let env = self.plugins.remove(&plugin_id).unwrap();
         log::info!("[Engine] Restart plugin: {}", env.manifest().name());
         self.captable
-            .remove_observing(env.manifest().capabilities(), plugin_id);
+            .remove_observing(env.manifest().capabilities(), &plugin_id);
         self.loader.load_plugin(env.path_owned()).unwrap();
     }
 
     pub fn get_plugins(&self) -> Vec<PluginID> {
-        self.plugins.keys().collect()
+        self.plugins.keys().cloned().collect()
     }
 
     pub const fn get_failed_plugins(&self) -> &[FailedModule] {

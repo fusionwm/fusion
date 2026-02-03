@@ -1,6 +1,7 @@
+id = "test.fusion.empty"
 name = "empty_plugin"
 version = "1.0"
-description = "Empty Plugin"
+description = "Test plugin"
 repository = "https://github.com/fusionwm/fusion"
 authors = []
 

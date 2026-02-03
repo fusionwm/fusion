@@ -6,7 +6,7 @@ use wasmtime::component::{Component, Linker};
 
 use crate::{
     context::ExecutionContext,
-    engine::{Bindings, InnerContext, PluginID, PluginStatus},
+    engine::{Bindings, InnerContext, PluginStatus},
     general::General,
     manifest::Manifest,
     table::CapabilityTable,
@@ -77,7 +77,6 @@ impl<I: InnerContext> PluginEnvironment<I> {
         &mut self,
         linker: &mut Linker<ExecutionContext<I>>,
         captable: &mut CapabilityTable<I>,
-        plugin_id: PluginID,
     ) {
         let capabilities = unsafe {
             // SAFETY: bindings does not own the capabilities array, so it is safe to dereference it.
@@ -85,12 +84,6 @@ impl<I: InnerContext> PluginEnvironment<I> {
             &*capabilities
         };
 
-        captable.create_bindings(
-            capabilities,
-            &mut self.bindings,
-            &self.component,
-            linker,
-            plugin_id,
-        );
+        captable.create_bindings(capabilities, &mut self.bindings, &self.component, linker);
     }
 }

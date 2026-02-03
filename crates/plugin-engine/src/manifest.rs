@@ -35,6 +35,7 @@ pub struct ConfigSchema {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Manifest {
+    id: String,
     name: String,
     version: String,
     description: String,
@@ -47,6 +48,11 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    #[must_use]
+    pub const fn id(&self) -> &str {
+        self.id.as_str()
+    }
+
     #[must_use]
     pub const fn name(&self) -> &str {
         self.name.as_str()
