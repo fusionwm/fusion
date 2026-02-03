@@ -36,14 +36,6 @@ fn setup_logging() {
 }
 
 fn execute_cargo_fusion(working_dir: &Path) -> anyhow::Result<()> {
-    println!("--- Environment Variables ---");
-    for (key, value) in std::env::vars() {
-        if key.contains("CARGO") || key.contains("RUST") {
-            println!("{key}: {value}");
-        }
-    }
-    println!("-----------------------------");
-
     let mut cmd = std::process::Command::new("cargo-fusion");
 
     cmd.env_remove("RUSTC_WRAPPER");
