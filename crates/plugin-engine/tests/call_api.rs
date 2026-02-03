@@ -1,4 +1,5 @@
 #![allow(clippy::non_std_lazy_statics)]
+#![allow(clippy::cast_precision_loss)]
 
 use lazy_static::lazy_static;
 use std::{
