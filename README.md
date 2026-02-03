@@ -1,2 +1,2 @@
-# fusion
-Modular Wayland window manager
+# Fusion
+Modular Wayland Compositor
