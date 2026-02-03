@@ -1,0 +1,12 @@
+[
+  {
+    "label": "Install cargo-fusion",
+    "command": "cargo",
+    "args": ["install", "--path", "crates/cargo-fusion"],
+  },
+  {
+    "label": "Run integration tests [plugin-engine]",
+    "command": "cargo",
+    "args": ["test", "-p", "plugin-engine", "--", "--nocapture"],
+  },
+]

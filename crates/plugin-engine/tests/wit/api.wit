@@ -1,0 +1,6 @@
+package fusion:tests;
+
+world tests-api {
+    export add-value: func(value: u8);
+    export get-value: func() -> u8;
+}

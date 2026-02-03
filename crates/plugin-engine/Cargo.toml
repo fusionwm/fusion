@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 graphics.workspace = true
 
+anyhow.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 chrono.workspace = true
@@ -29,3 +30,5 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 lazy_static.workspace = true
+env_logger.workspace = true
+cargo-fusion.workspace = true

@@ -95,6 +95,7 @@ impl<I: InnerContext> PluginEngine<I> {
     }
 
     pub fn new(factory: I::Factory) -> Result<Self, Box<dyn std::error::Error>> {
+        log::debug!("[Engine] Initializing plugin engine");
         Self::ensure_directory_exists()?;
 
         let engine = Engine::default();

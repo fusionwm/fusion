@@ -127,7 +127,7 @@ impl<I: InnerContext> CapabilityTable<I> {
             return false;
         }
 
-        info!("Register capability: {name}");
+        info!("[Engine] Register capability: {name}");
         let checker = rules.new_checker();
 
         self.inner.insert(

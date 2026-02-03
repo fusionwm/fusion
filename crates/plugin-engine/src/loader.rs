@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context;
 use notify::{
     RecursiveMode, Watcher,
     event::{ModifyKind, RenameMode},
@@ -28,8 +29,10 @@ enum Answer {
 }
 
 async fn run_loader_loop<I: InnerContext>(loader: Arc<Mutex<InnerPluginLoader>>) {
+    log::debug!("[Loader] Starting loader loop");
     {
         let mut loader = loader.lock().await;
+        log::debug!("[Loader] Preload plugins");
         if let Err(e) = loader.preload_plugins(I::plugins_path()).await {
             log::error!("[Loader] Preload failed: {e:?}");
             return;
@@ -38,7 +41,7 @@ async fn run_loader_loop<I: InnerContext>(loader: Arc<Mutex<InnerPluginLoader>>)
 
     let mut interval = tokio::time::interval(Duration::from_millis(10));
     loop {
-        interval.tick().await; // Более точный аналог sleep
+        interval.tick().await;
 
         if let Ok(mut loader) = loader.try_lock() {
             loader.handle_events();
@@ -56,6 +59,7 @@ pub(crate) struct PluginLoader {
 
 impl PluginLoader {
     pub fn new<I: InnerContext>() -> Result<Self, Box<dyn std::error::Error>> {
+        log::debug!("[Engine] Initializing plugin loader");
         let (request_sender, request_receiver) = std::sync::mpsc::channel();
         let (answer_sender, answer_receiver) = std::sync::mpsc::channel();
         let loader = InnerPluginLoader::new(request_receiver, answer_sender, &I::plugins_path())?;
@@ -124,6 +128,7 @@ impl InnerPluginLoader {
     }
 
     fn load_plugin(&mut self, path: PathBuf) {
+        log::debug!("[Loader] Loading packed plugin: {}", path.display());
         match Self::create_packed_module(path.clone()) {
             Ok(module) => {
                 log::info!("[Loader] Load module: {}", module.manifest.name());
@@ -236,7 +241,7 @@ impl InnerPluginLoader {
         }
     }
 
-    fn create_packed_module(path: PathBuf) -> Result<PackedModule, Box<dyn std::error::Error>> {
+    fn create_packed_module(path: PathBuf) -> anyhow::Result<PackedModule> {
         //TODO check if a module was already loaded
         let bytes = std::fs::read(&path)?;
         PackedModule::create(&bytes, path)
@@ -260,19 +265,23 @@ pub struct PackedModule {
 }
 
 impl PackedModule {
-    pub fn create(bytes: &[u8], path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn create(bytes: &[u8], path: PathBuf) -> anyhow::Result<Self> {
         let mut reader = Cursor::new(bytes);
         let mut archive = ZipArchive::new(&mut reader)?;
 
         let manifest: Manifest = {
-            let mut zip_manifest = archive.by_name("manifest.toml")?;
+            let mut zip_manifest = archive
+                .by_name("manifest.toml")
+                .with_context(|| "Missing 'manifest.toml' file")?;
             let mut temp = String::new();
             zip_manifest.read_to_string(&mut temp)?;
             toml::from_str(&temp)
         }?;
 
         let mut module = Vec::new();
-        let mut zip_module = archive.by_name("module.wasm")?;
+        let mut zip_module = archive
+            .by_name("module.wasm")
+            .with_context(|| "Missing 'module.wasm' file")?;
         zip_module.read_to_end(&mut module)?;
 
         //archive
