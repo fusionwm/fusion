@@ -7,10 +7,12 @@ use crate::{
     manifest::Manifest,
     table::{CapabilityProvider, CapabilityTable, CapabilityWriteRules},
 };
+use serde::Deserialize;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    path::PathBuf,
+    fmt::Display,
+    path::{Path, PathBuf},
 };
 use wasmtime::{Engine, Store};
 use wasmtime::{
@@ -29,8 +31,14 @@ pub trait InnerContext: Send + Sync + Sized + 'static {
     fn plugins_path() -> PathBuf;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 pub struct PluginID(String);
+
+impl Display for PluginID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl From<String> for PluginID {
     fn from(value: String) -> Self {
@@ -51,6 +59,7 @@ pub struct PluginEngine<I: InnerContext> {
     plugins: HashMap<PluginID, PluginEnvironment<I>>,
     factory: I::Factory,
     failed: Vec<FailedModule>,
+    hotswap: HashMap<PluginID, PluginEnvironment<I>>,
 }
 
 pub struct BindingContext<'environment, I: InnerContext, B: UntypedPluginBinding> {
@@ -123,6 +132,7 @@ impl<I: InnerContext> PluginEngine<I> {
             plugins: HashMap::default(),
             factory,
             failed: vec![],
+            hotswap: HashMap::default(),
         })
     }
 
@@ -165,10 +175,10 @@ impl<I: InnerContext> PluginEngine<I> {
         Ok(linker)
     }
 
-    fn prepare_module(
+    fn prepare_plugin(
         &mut self,
         package: FusionPackage,
-    ) -> Result<General, Box<dyn std::error::Error>> {
+    ) -> Result<(General, PluginID, PluginEnvironment<I>), Box<dyn std::error::Error>> {
         log::warn!("[{}] Preparing module", package.manifest.name());
 
         let plugin_id = PluginID(package.manifest.id().to_string());
@@ -191,45 +201,82 @@ impl<I: InnerContext> PluginEngine<I> {
         env.create_bindings(&mut linker, &mut self.captable);
         let general = env.instantiate_general_api(&linker)?;
 
+        Ok((general, plugin_id, env))
+    }
+
+    fn prepare_plugin_direct(
+        &mut self,
+        package: FusionPackage,
+    ) -> Result<General, Box<dyn std::error::Error>> {
+        let (general, plugin_id, env) = self.prepare_plugin(package)?;
         self.plugins.insert(plugin_id, env);
         Ok(general)
     }
 
-    pub fn load_modules(&mut self) {
-        let modules = self.loader.get_packed_plugins().unwrap();
+    fn prepare_plugin_hotswap(
+        &mut self,
+        package: FusionPackage,
+    ) -> Result<General, Box<dyn std::error::Error>> {
+        let (general, plugin_id, env) = self.prepare_plugin(package)?;
+        self.hotswap.insert(plugin_id, env);
+        Ok(general)
+    }
 
-        for module in modules {
-            log::debug!("[Engine] Loading module: {}", module.manifest.name());
-            let path = module.path.clone();
-            let manifest = module.manifest.clone();
+    fn call_general_api(&mut self, general: &General, path: &Path, manifest: &Manifest) {
+        let (plugin_id, env) = unsafe {
+            // SAFETY: The plugin is guaranteed to be valid because it was just added in self.prepare_module.
+            self.plugins.iter_mut().last().unwrap_unchecked()
+        };
 
-            match self.prepare_module(module) {
-                Ok(general) => {
-                    let (plugin_id, env) = unsafe {
-                        // SAFETY: The plugin is guaranteed to be valid because it was just added in self.prepare_module.
-                        self.plugins.iter_mut().last().unwrap_unchecked()
-                    };
+        if let Err(err) = general.call_init(&mut env.bindings_mut().store) {
+            let plugin_id = plugin_id.clone();
+            let path = path.to_path_buf();
+            let manifest = manifest.clone();
 
-                    if let Err(err) = general.call_init(&mut env.bindings_mut().store) {
-                        let plugin_id = plugin_id.clone();
-                        //let _ = env;
+            log::error!("[{}] Unable to initialize plugin: {err}", manifest.name(),);
+            self.plugins.remove(&plugin_id);
+            self.captable
+                .remove_observing(manifest.capabilities(), &plugin_id);
+            self.failed.push(FailedModule { path, manifest });
+        }
+    }
 
-                        log::error!("[{}] Unable to initialize module: {}", manifest.name(), err);
-                        self.plugins.remove(&plugin_id);
-                        self.captable
-                            .remove_observing(manifest.capabilities(), &plugin_id);
-                        self.failed.push(FailedModule { path, manifest });
+    pub fn load_packages(&mut self) {
+        let packages = self.loader.get_packages().unwrap();
+
+        for package in packages {
+            let path = package.path.clone();
+            let manifest = package.manifest.clone();
+
+            if self.plugins.contains_key(package.manifest.id()) {
+                log::debug!("Start hotswapping");
+                match self.prepare_plugin_hotswap(package) {
+                    Ok(api) => {
+                        self.call_general_api(&api, &path, &manifest);
+                        let plugin = self.hotswap.remove(manifest.id()).unwrap();
+                        self.plugins.insert(manifest.id().clone(), plugin);
+                    }
+                    Err(err) => {
+                        log::error!("[Engine] Unable to hotswap plugin: {err}");
                     }
                 }
-                Err(err) => {
-                    log::error!("[{}] Unable to prepare module: {}", manifest.name(), err);
-                    self.failed.push(FailedModule { path, manifest });
+            } else {
+                log::debug!("[Engine] Loading module: {}", package.manifest.name());
+
+                match self.prepare_plugin_direct(package) {
+                    Ok(api) => {
+                        self.call_general_api(&api, &path, &manifest);
+                    }
+                    Err(err) => {
+                        log::error!("[{}] Unable to prepare module: {}", manifest.name(), err);
+                        self.failed.push(FailedModule { path, manifest });
+                    }
                 }
             }
         }
     }
 
-    pub fn restart_module(&mut self, plugin_id: impl Into<PluginID>) {
+    pub fn restart_plugin(&mut self, plugin_id: impl Into<PluginID>) {
         let plugin_id = plugin_id.into();
         let env = self.plugins.remove(&plugin_id).unwrap();
         log::info!("[Engine] Restart plugin: {}", env.manifest().name());

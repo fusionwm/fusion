@@ -78,6 +78,6 @@ pub fn wait_one_second<I: InnerContext>(engine: &mut PluginEngine<I>) {
     let frame_time = Duration::from_secs_f32(1.0 / FRAME_COUNT as f32);
     for _ in 0..FRAME_COUNT {
         std::thread::sleep(frame_time);
-        engine.load_modules();
+        engine.load_packages();
     }
 }

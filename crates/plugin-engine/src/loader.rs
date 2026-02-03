@@ -125,7 +125,7 @@ impl PluginLoader {
         })
     }
 
-    pub fn get_packed_plugins(&mut self) -> Result<Vec<FusionPackage>, Box<dyn std::error::Error>> {
+    pub fn get_packages(&mut self) -> Result<Vec<FusionPackage>, Box<dyn std::error::Error>> {
         let mut packed = Vec::new();
         while let Ok(answer) = self.answer_receiver.try_recv() {
             match answer {

@@ -3,6 +3,8 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
+use crate::PluginID;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Author {
     name: String,
@@ -35,7 +37,7 @@ pub struct ConfigSchema {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Manifest {
-    id: String,
+    id: PluginID,
     name: String,
     version: String,
     description: String,
@@ -49,8 +51,8 @@ pub struct Manifest {
 
 impl Manifest {
     #[must_use]
-    pub const fn id(&self) -> &str {
-        self.id.as_str()
+    pub const fn id(&self) -> &PluginID {
+        &self.id
     }
 
     #[must_use]
