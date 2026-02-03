@@ -1,4 +1,4 @@
-use cargo_manifest::Manifest;
+use cargo_manifest::{Manifest, MaybeInherited};
 use cargo_metadata::MetadataCommand;
 use clap::{Parser, Subcommand};
 use std::{
@@ -42,6 +42,15 @@ impl BuildEnvironment {
             .package
             .ok_or_else(|| anyhow::anyhow!("This is not a Cargo package"))?;
 
+        let package_name = &package.name;
+        let plugin_name = {
+            let package_version = match package.version() {
+                MaybeInherited::Inherited { workspace: _ } => todo!(),
+                MaybeInherited::Local(version) => version,
+            };
+            format!("{package_name}_{package_version}")
+        };
+
         let target = if let Some(output) = output {
             if output.starts_with("..") {
                 PathBuf::new().join(root).join(output)
@@ -62,10 +71,13 @@ impl BuildEnvironment {
         let wasm = target
             .join("wasm32-wasip2")
             .join(mode)
-            .join(&package.name)
+            .join(package_name)
             .with_extension("wasm");
 
-        let output = target.join(&package.name).with_extension("fus");
+        let output = target
+            .join("plugins")
+            .join(&plugin_name)
+            .with_extension("fus");
 
         Ok(Self {
             manifest,
@@ -107,6 +119,11 @@ fn main() -> anyhow::Result<()> {
             let wasm = read_wasm(&build.wasm)?;
 
             println!("Done! Output: {}", build.output.display());
+
+            let Some(output_dir) = build.output.parent() else {
+                anyhow::bail!("Invalid output path");
+            };
+            std::fs::create_dir_all(output_dir)?;
 
             let mut writer = ZipWriter::new(std::fs::File::create(build.output)?);
             writer.start_file("manifest.toml", FileOptions::DEFAULT)?;
