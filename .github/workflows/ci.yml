@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
+      
       
       - name: Install system dependencies
         run: |
@@ -27,10 +30,8 @@ jobs:
             libinput-dev \
             libudev-dev \
             libseat-dev \
-            pkg-config
-        
-      - name: Install mold linker
-        run: sudo apt install -y mold
+            pkg-config \
+            mold
         
       - name: Install Rust
         run: rustup update stable
