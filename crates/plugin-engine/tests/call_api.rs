@@ -98,7 +98,7 @@ impl UntypedPluginBinding for TestsApi {
     }
 }
 
-fn build_plugin(working_dir: &Path) -> anyhow::Result<()> {
+fn execute_cargo_fusion(working_dir: &Path) -> anyhow::Result<()> {
     let mut cmd = std::process::Command::new("cargo-fusion");
     cmd.arg("build")
         .arg("-o")
@@ -117,10 +117,19 @@ fn build_plugins() -> anyhow::Result<()> {
         if !entry.file_type().unwrap().is_dir() {
             continue;
         }
-        build_plugin(&entry.path())?;
+        execute_cargo_fusion(&entry.path())?;
     }
 
     Ok(())
+}
+
+fn wait_one_second(engine: &mut PluginEngine<Empty>) {
+    const FRAME_COUNT: u64 = 60;
+    let frame_time = Duration::from_secs(1 / FRAME_COUNT);
+    for _ in 0..FRAME_COUNT {
+        std::thread::sleep(frame_time);
+        engine.load_modules();
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -134,10 +143,7 @@ async fn call_api() -> Result<(), Box<dyn std::error::Error>> {
         TestsApiCapProvider,
     );
 
-    for _ in 0..60 {
-        std::thread::sleep(Duration::from_secs_f32(0.016));
-        engine.load_modules();
-    }
+    wait_one_second(&mut engine);
 
     let mut api = engine.get_single_write_bindings::<TestsApi>("tests-api");
     let mut store = api.store();
