@@ -2,7 +2,7 @@ use plugin_engine::PluginEngine;
 use plugin_engine::loader::LoaderConfig;
 
 use crate::common::{PLUGINS_PATH, initialize, wait_one_second};
-use crate::context::tests_api::{Empty, EmptyFactory};
+use crate::context::empty::{Empty, EmptyFactory};
 
 mod common;
 mod context;

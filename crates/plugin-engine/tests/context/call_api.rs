@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 
 use plugin_engine::{
@@ -15,16 +17,16 @@ plugin_engine::wasm::bindgen!({
     world: "tests-api",
 });
 
-pub struct EmptyFactory;
-impl InnerContextFactory<Empty> for EmptyFactory {
-    fn generate(&self, _: &[String]) -> Empty {
-        Empty
+pub struct CallApiFactory;
+impl InnerContextFactory<CallApi> for CallApiFactory {
+    fn generate(&self, _: &[String]) -> CallApi {
+        CallApi
     }
 }
 
-pub struct Empty;
-impl InnerContext for Empty {
-    type Factory = EmptyFactory;
+pub struct CallApi;
+impl InnerContext for CallApi {
+    type Factory = CallApiFactory;
 
     fn config_path() -> PathBuf {
         CONFIG_PATH.path().to_path_buf()
@@ -39,9 +41,10 @@ impl InnerContext for Empty {
     }
 }
 
-pub struct TestsApiCapProvider;
-impl CapabilityProvider for TestsApiCapProvider {
-    type Inner = Empty;
+#[allow(dead_code)]
+pub struct CallApiCapProvider;
+impl CapabilityProvider for CallApiCapProvider {
+    type Inner = CallApi;
 
     fn link_functions(&self, _: &mut Linker<ExecutionContext<Self::Inner>>) {}
 

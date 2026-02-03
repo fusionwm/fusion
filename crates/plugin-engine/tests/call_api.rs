@@ -5,14 +5,14 @@ use plugin_engine::{PluginEngine, loader::LoaderConfig, table::CapabilityWriteRu
 
 use crate::{
     common::{PLUGINS_PATH, initialize, wait_one_second},
-    context::tests_api::{Empty, EmptyFactory, TestsApi, TestsApiCapProvider},
+    context::call_api::{CallApi, CallApiCapProvider, CallApiFactory, TestsApi},
 };
 
 #[test]
 fn call_api() -> Result<(), Box<dyn std::error::Error>> {
     initialize();
-    let mut engine = PluginEngine::<Empty>::new(
-        EmptyFactory,
+    let mut engine = PluginEngine::<CallApi>::new(
+        CallApiFactory,
         LoaderConfig::default()
             .enable_preload(false)
             .manual_loading(true),
@@ -20,7 +20,7 @@ fn call_api() -> Result<(), Box<dyn std::error::Error>> {
     engine.add_capability(
         "tests-api",
         CapabilityWriteRules::SingleWrite,
-        TestsApiCapProvider,
+        CallApiCapProvider,
     );
 
     engine.load_package(PLUGINS_PATH.path().join("plugin_1.0.fsp"));
