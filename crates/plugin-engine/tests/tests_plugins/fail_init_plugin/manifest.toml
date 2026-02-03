@@ -1,0 +1,7 @@
+name = "fail_init_plugin"
+version = "1.0"
+description = "Fail Init Plugin"
+repository = "https://github.com/fusionwm/fusion"
+authors = []
+
+capabilities = []
