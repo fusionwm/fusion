@@ -3583,11 +3583,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitflags 2.10.0",
- "cargo-fusion",
  "chrono",
  "dirs",
  "env_logger",
- "graphics",
  "http-body-util",
  "lazy_static",
  "log",

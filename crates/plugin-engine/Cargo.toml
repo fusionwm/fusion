@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-graphics.workspace = true
-
 anyhow.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
@@ -31,4 +29,3 @@ tracing-subscriber.workspace = true
 tempfile.workspace = true
 lazy_static.workspace = true
 env_logger.workspace = true
-cargo-fusion.workspace = true

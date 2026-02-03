@@ -3,7 +3,7 @@ mod api;
 use crate::plugin::general::logging::info;
 
 wit_bindgen::generate!({
-    path: "../../../../specs/plugin-base",
+    path: "../../../../../specs/plugin-base",
     world: "general",
 });
 

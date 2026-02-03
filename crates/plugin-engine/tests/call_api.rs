@@ -1,28 +1,24 @@
 #![allow(clippy::non_std_lazy_statics)]
 
 use lazy_static::lazy_static;
-use std::{path::PathBuf, time::Duration};
+use std::{
+    any::{Any, TypeId},
+    path::{Path, PathBuf},
+    time::Duration,
+};
+use tempfile::TempDir;
 
 use plugin_engine::{
     InnerContext, InnerContextFactory, PluginEngine, UntypedPluginBinding,
+    context::ExecutionContext,
     table::{CapabilityProvider, CapabilityWriteRules},
+    wasm::{Component, Linker, Store},
 };
 
 lazy_static! {
-    static ref PLUGINS_PATH: PathBuf = {
-        let working_dir = std::env::current_dir().unwrap();
-        working_dir.join("tests").join("packed")
-    };
-    static ref LOGS_PATH: PathBuf = {
-        let mut tempdir = tempfile::tempdir().unwrap();
-        tempdir.disable_cleanup(true);
-        tempdir.keep()
-    };
-    static ref CONFIG_PATH: PathBuf = {
-        let mut tempdir = tempfile::tempdir().unwrap();
-        tempdir.disable_cleanup(true);
-        tempdir.keep()
-    };
+    static ref PLUGINS_PATH: TempDir = tempfile::tempdir().unwrap();
+    static ref LOGS_PATH: TempDir = tempfile::tempdir().unwrap();
+    static ref CONFIG_PATH: TempDir = tempfile::tempdir().unwrap();
 }
 
 struct EmptyFactory;
@@ -36,16 +32,16 @@ struct Empty;
 impl InnerContext for Empty {
     type Factory = EmptyFactory;
 
-    fn config_path() -> std::path::PathBuf {
-        CONFIG_PATH.clone()
+    fn config_path() -> PathBuf {
+        CONFIG_PATH.path().to_path_buf()
     }
 
-    fn logs_path() -> std::path::PathBuf {
-        LOGS_PATH.clone()
+    fn logs_path() -> PathBuf {
+        LOGS_PATH.path().to_path_buf()
     }
 
-    fn plugins_path() -> std::path::PathBuf {
-        PLUGINS_PATH.clone()
+    fn plugins_path() -> PathBuf {
+        PLUGINS_PATH.path().to_path_buf()
     }
 }
 
@@ -76,39 +72,61 @@ struct TestsApiCapProvider;
 impl CapabilityProvider for TestsApiCapProvider {
     type Inner = Empty;
 
-    fn link_functions(
-        &self,
-        _: &mut wasmtime::component::Linker<plugin_engine::context::ExecutionContext<Self::Inner>>,
-    ) {
-    }
+    fn link_functions(&self, _: &mut Linker<ExecutionContext<Self::Inner>>) {}
 
     fn create_bindings(
         &self,
-        store: &mut wasmtime::Store<plugin_engine::context::ExecutionContext<Self::Inner>>,
-        component: &wasmtime::component::Component,
-        linker: &wasmtime::component::Linker<plugin_engine::context::ExecutionContext<Self::Inner>>,
-    ) -> Box<dyn plugin_engine::UntypedPluginBinding> {
+        store: &mut Store<ExecutionContext<Self::Inner>>,
+        component: &Component,
+        linker: &Linker<ExecutionContext<Self::Inner>>,
+    ) -> Box<dyn UntypedPluginBinding> {
         Box::new(TestsApi::instantiate(store, component, linker).unwrap())
     }
 }
 
 impl UntypedPluginBinding for TestsApi {
-    fn type_id(&self) -> std::any::TypeId {
-        std::any::TypeId::of::<Self>()
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
+    fn as_any(&self) -> &dyn Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+}
+
+fn build_plugin(working_dir: &Path) -> anyhow::Result<()> {
+    let mut cmd = std::process::Command::new("cargo-fusion");
+    cmd.arg("build")
+        .arg("-o")
+        .arg(PLUGINS_PATH.path())
+        .current_dir(working_dir)
+        .status()?;
+
+    Ok(())
+}
+
+fn build_plugins() -> anyhow::Result<()> {
+    let plugins = std::env::current_dir()?.join("tests").join("tests_plugins");
+    let dir = std::fs::read_dir(plugins)?;
+    for entry in dir {
+        let entry = entry?;
+        if !entry.file_type().unwrap().is_dir() {
+            continue;
+        }
+        build_plugin(&entry.path())?;
+    }
+
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn call_api() -> Result<(), Box<dyn std::error::Error>> {
     setup_logging();
+    build_plugins()?;
     let mut engine = PluginEngine::<Empty>::new(EmptyFactory)?;
     engine.add_capability(
         "tests-api",

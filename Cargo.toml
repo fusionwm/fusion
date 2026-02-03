@@ -11,7 +11,7 @@ members = [
     "examples/rust",
     "crates/cargo-fusion",
 
-    "crates/plugin-engine/tests/plugin",
+    "crates/plugin-engine/tests/tests_plugins/plugin",
 ]
 
 [profile.release]
@@ -26,7 +26,6 @@ debug = false
 thiserror = "2.0.18"
 
 plugin-engine = { path = "crates/plugin-engine" }
-cargo-fusion = {path = "crates/cargo-fusion"}
 
 ### Other
 wasmtime = { version = "41.0.2", features = ["async"] }

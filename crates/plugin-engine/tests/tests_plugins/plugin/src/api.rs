@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use crate::Example;
 
 wit_bindgen::generate!({
-    path: "../wit",
+    path: "../../wit",
     world: "tests-api",
 });
 
