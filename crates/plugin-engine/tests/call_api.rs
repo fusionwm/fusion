@@ -38,11 +38,17 @@ fn setup_logging() {
 fn execute_cargo_fusion(working_dir: &Path) -> anyhow::Result<()> {
     let mut cmd = std::process::Command::new("cargo-fusion");
     cmd.env("RUSTFLAGS", "");
+    cmd.env("CARGO_ENCODED_RUSTDOCFLAGS", "");
     cmd.arg("build")
         .arg("-o")
         .arg(PLUGINS_PATH.path())
         .current_dir(working_dir)
         .status()?;
+
+    println!("Test");
+    for (key, value) in cmd.get_envs() {
+        println!("{}: {:?}", key.to_str().unwrap(), value);
+    }
 
     Ok(())
 }
