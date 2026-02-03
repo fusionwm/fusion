@@ -26,6 +26,7 @@ jobs:
             libgbm-dev \
             libinput-dev \
             libudev-dev \
+            libseat-dev \
             pkg-config
         
       - name: Install mold linker
@@ -33,9 +34,6 @@ jobs:
         
       - name: Install Rust
         run: rustup update stable
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
