@@ -7,18 +7,6 @@
         [DONE] Plugin auto detection
         [DONE] Plugin auto loading
         [WIP] Tests
+        Hot swap
+        Hot reload
         Logs
-
-
-[0.2.1]
-    [Plugin engine]
-        Benchmarks
-
-    [Plugin engine API]
-        Get failed plugin
-        Reload plugin
-
-[0.3]
-    [Plugin engine]
-        Async
-        Custom capabilities
