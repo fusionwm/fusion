@@ -3,10 +3,10 @@
         Control utility
 
     [Plugin engine]
-        Plugin reloading (Test required)
-        Plugin auto detection
-        Plugin auto loading
-        Tests
+        [DONE] Plugin reloading
+        [DONE] Plugin auto detection
+        [DONE] Plugin auto loading
+        [WIP] Tests
         Logs
         Logs reader (terminal, window)
 
