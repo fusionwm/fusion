@@ -2,8 +2,8 @@
 
 use lazy_static::lazy_static;
 use std::{
-    any::{Any, TypeId},
     path::{Path, PathBuf},
+    sync::Once,
     time::Duration,
 };
 use tempfile::TempDir;
@@ -15,6 +15,58 @@ use plugin_engine::{
     table::{CapabilityProvider, CapabilityWriteRules},
     wasm::{Component, Linker, Store},
 };
+
+fn setup_logging() {
+    use log::LevelFilter;
+    use std::io::Write;
+
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "[{} {}] {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter_level(LevelFilter::Info)
+        .init();
+}
+
+fn execute_cargo_fusion(working_dir: &Path) -> anyhow::Result<()> {
+    let mut cmd = std::process::Command::new("cargo-fusion");
+    cmd.arg("build")
+        .arg("-o")
+        .arg(PLUGINS_PATH.path())
+        .current_dir(working_dir)
+        .status()?;
+
+    Ok(())
+}
+
+fn build_plugins() -> anyhow::Result<()> {
+    let plugins = std::env::current_dir()?.join("tests").join("tests_plugins");
+    let dir = std::fs::read_dir(plugins)?;
+    for entry in dir {
+        let entry = entry?;
+        if !entry.file_type().unwrap().is_dir() {
+            continue;
+        }
+        execute_cargo_fusion(&entry.path())?;
+    }
+
+    Ok(())
+}
+
+static INIT: Once = Once::new();
+
+fn initialize() {
+    INIT.call_once(|| {
+        setup_logging();
+        build_plugins().unwrap();
+    });
+}
 
 lazy_static! {
     static ref PLUGINS_PATH: TempDir = tempfile::tempdir().unwrap();
@@ -46,24 +98,6 @@ impl InnerContext for Empty {
     }
 }
 
-fn setup_logging() {
-    use log::LevelFilter;
-    use std::io::Write;
-
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "[{} {}] {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.args()
-            )
-        })
-        .filter_level(LevelFilter::Info)
-        .init();
-}
-
 plugin_engine::wasm::bindgen!({
     path: "tests/wit",
     world: "tests-api",
@@ -87,34 +121,9 @@ impl CapabilityProvider for TestsApiCapProvider {
 
 impl_untyped_plugin_binding!(TestsApi);
 
-fn execute_cargo_fusion(working_dir: &Path) -> anyhow::Result<()> {
-    let mut cmd = std::process::Command::new("cargo-fusion");
-    cmd.arg("build")
-        .arg("-o")
-        .arg(PLUGINS_PATH.path())
-        .current_dir(working_dir)
-        .status()?;
-
-    Ok(())
-}
-
-fn build_plugins() -> anyhow::Result<()> {
-    let plugins = std::env::current_dir()?.join("tests").join("tests_plugins");
-    let dir = std::fs::read_dir(plugins)?;
-    for entry in dir {
-        let entry = entry?;
-        if !entry.file_type().unwrap().is_dir() {
-            continue;
-        }
-        execute_cargo_fusion(&entry.path())?;
-    }
-
-    Ok(())
-}
-
 fn wait_one_second(engine: &mut PluginEngine<Empty>) {
     const FRAME_COUNT: u64 = 60;
-    let frame_time = Duration::from_secs(1 / FRAME_COUNT);
+    let frame_time = Duration::from_secs_f32(1.0 / FRAME_COUNT as f32);
     for _ in 0..FRAME_COUNT {
         std::thread::sleep(frame_time);
         engine.load_modules();
@@ -123,8 +132,7 @@ fn wait_one_second(engine: &mut PluginEngine<Empty>) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn call_api() -> Result<(), Box<dyn std::error::Error>> {
-    setup_logging();
-    build_plugins()?;
+    initialize();
     let mut engine = PluginEngine::<Empty>::new(EmptyFactory)?;
     engine.add_capability(
         "tests-api",
@@ -144,5 +152,44 @@ async fn call_api() -> Result<(), Box<dyn std::error::Error>> {
     api.call_add_value(&mut store, 42)?;
 
     assert!(api.call_get_value(&mut store)? == 84);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
+    initialize();
+    let mut engine = PluginEngine::<Empty>::new(EmptyFactory)?;
+    engine.add_capability(
+        "tests-api",
+        CapabilityWriteRules::SingleWrite,
+        TestsApiCapProvider,
+    );
+
+    wait_one_second(&mut engine);
+
+    {
+        let mut api = engine.get_single_write_bindings::<TestsApi>("tests-api");
+        let mut store = api.store();
+
+        assert!(api.call_get_value(&mut store)? == 0);
+        api.call_add_value(&mut store, 42)?;
+
+        assert!(api.call_get_value(&mut store)? == 42);
+    }
+
+    {
+        let plugin_id = *engine.get_plugins().first().unwrap();
+        engine.restart_module(plugin_id);
+    }
+
+    wait_one_second(&mut engine);
+
+    {
+        let mut api = engine.get_single_write_bindings::<TestsApi>("tests-api");
+        let mut store = api.store();
+
+        assert!(api.call_get_value(&mut store)? == 0);
+    }
+
     Ok(())
 }

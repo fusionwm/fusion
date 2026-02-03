@@ -213,7 +213,14 @@ impl<I: InnerContext> PluginEngine<I> {
     pub fn restart_module(&mut self, plugin_id: impl Into<PluginID>) {
         let plugin_id = plugin_id.into();
         let env = self.plugins.remove(plugin_id).unwrap();
+        log::info!("[Engine] Restart plugin: {}", env.manifest().name());
+        self.captable
+            .remove_observing(env.manifest().capabilities(), plugin_id);
         self.loader.load_plugin(env.path_owned()).unwrap();
+    }
+
+    pub fn get_plugins(&self) -> Vec<PluginID> {
+        self.plugins.keys().collect()
     }
 }
 
