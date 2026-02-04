@@ -640,7 +640,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-fusion"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "cargo-manifest",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "compositor"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
@@ -1748,7 +1748,7 @@ dependencies = [
 
 [[package]]
 name = "fusion-socket-protocol"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "derive_more",
  "postcard",
@@ -1757,7 +1757,7 @@ dependencies = [
 
 [[package]]
 name = "fusionctl"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2026,7 +2026,7 @@ dependencies = [
 
 [[package]]
 name = "graphics"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
@@ -2050,7 +2050,7 @@ dependencies = [
 
 [[package]]
 name = "graphics-derive"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitflags 2.10.0",
  "once_cell",
@@ -2061,7 +2061,7 @@ dependencies = [
 
 [[package]]
 name = "graphics-widgets"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "graphics",
  "graphics-derive",
@@ -3557,7 +3557,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "plugin-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bitflags 2.10.0",
@@ -6133,7 +6133,7 @@ dependencies = [
 
 [[package]]
 name = "window_manager"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lazy_static",
  "wit-bindgen 0.52.0",
@@ -6735,7 +6735,7 @@ dependencies = [
 
 [[package]]
 name = "wl_client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "glam",
  "memmap2",
