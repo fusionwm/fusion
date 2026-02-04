@@ -215,8 +215,8 @@ impl<I: InnerContext> PluginEngine<I> {
     fn call_general_api(
         &mut self,
         api: &General,
-        plugin_id: &PluginID,
-        env: &mut PluginEnvironment<I>,
+        plugin_id: PluginID,
+        mut env: PluginEnvironment<I>,
         path: &Path,
         manifest: &Manifest,
     ) {
@@ -229,6 +229,8 @@ impl<I: InnerContext> PluginEngine<I> {
             self.captable
                 .remove_observing(manifest.capabilities(), &plugin_id);
             self.failed.push(FailedPlugin { path, manifest });
+        } else {
+            self.plugins.insert(plugin_id, env);
         }
     }
 
@@ -254,15 +256,8 @@ impl<I: InnerContext> PluginEngine<I> {
             );
 
             match self.prepare_plugin(package.clone(), silent_link) {
-                Ok((api, plugin_id, mut env)) => {
-                    self.call_general_api(
-                        &api,
-                        &plugin_id,
-                        &mut env,
-                        &package.path,
-                        &package.manifest,
-                    );
-                    self.plugins.insert(id, env);
+                Ok((api, plugin_id, env)) => {
+                    self.call_general_api(&api, plugin_id, env, &package.path, &package.manifest);
                 }
                 Err(err) => {
                     log::error!(
