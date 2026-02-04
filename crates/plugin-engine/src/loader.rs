@@ -180,11 +180,12 @@ impl InnerPluginLoader {
         match Self::create_fusion_package(path.clone()) {
             Ok(module) => {
                 log::info!("[Loader] Load plugin: {}", module.manifest.name());
-                if let Some(cap) = module.manifest.custom_capabilities() {
+                let custom_caps = module.manifest.custom_capabilities();
+                if !custom_caps.is_empty() {
                     log::info!(
                         "[{}] Available capabilities: {:?}",
                         module.manifest.name(),
-                        cap
+                        custom_caps
                     );
                 }
                 self.loaded.insert(path, module);

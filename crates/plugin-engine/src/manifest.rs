@@ -44,7 +44,7 @@ pub struct Manifest {
     repository: String,
     authors: Vec<Author>,
     capabilities: Option<Vec<String>>,
-    custom: Option<Vec<String>>,
+    custom_capabilities: Option<Vec<String>>,
     errors: Option<HashMap<usize, ModuleError>>,
     schema: Option<ConfigSchema>,
 }
@@ -61,12 +61,32 @@ impl Manifest {
     }
 
     #[must_use]
-    pub fn custom_capabilities(&self) -> Option<&[String]> {
-        self.custom.as_deref()
+    pub const fn version(&self) -> &str {
+        self.version.as_str()
+    }
+
+    #[must_use]
+    pub const fn description(&self) -> &str {
+        self.description.as_str()
+    }
+
+    #[must_use]
+    pub const fn repository(&self) -> &str {
+        self.repository.as_str()
+    }
+
+    #[must_use]
+    pub const fn authors(&self) -> &[Author] {
+        self.authors.as_slice()
     }
 
     #[must_use]
     pub fn capabilities(&self) -> &[String] {
         self.capabilities.as_deref().unwrap_or_default()
+    }
+
+    #[must_use]
+    pub fn custom_capabilities(&self) -> &[String] {
+        self.custom_capabilities.as_deref().unwrap_or_default()
     }
 }

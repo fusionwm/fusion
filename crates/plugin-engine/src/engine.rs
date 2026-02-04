@@ -302,6 +302,14 @@ impl<I: InnerContext> PluginEngine<I> {
     pub fn load_package(&mut self, path: PathBuf) {
         self.loader.load_plugin(path).unwrap();
     }
+
+    pub fn get_plugin_env_by_id(&self, plugin_id: &PluginID) -> Option<&PluginEnvironment<I>> {
+        self.plugins.get(plugin_id)
+    }
+
+    pub fn get_failed_plugin_by_id(&self, plugin_id: &PluginID) -> Option<&FailedPlugin> {
+        self.failed.iter().find(|f| f.manifest.id() == plugin_id)
+    }
 }
 
 pub trait UntypedPluginBinding: 'static {
