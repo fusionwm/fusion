@@ -2,13 +2,17 @@
 resolver = "3"
 members = [
     "crates/compositor",
-    #"crates/ctl",
+    "crates/fusionctl",
+    "crates/fusion-socket-protocol",
+
+    "crates/plugin-engine",
+    "crates/cargo-fusion",
+
     "crates/wl_client",
     "crates/graphics",
     "crates/graphics-derive",
     "crates/graphics-widgets",
-    "crates/plugin-engine",
-    "crates/cargo-fusion",
+
 
     "examples/*",
 
@@ -28,6 +32,7 @@ debug = false
 thiserror = "2.0.18"
 
 plugin-engine = { path = "crates/plugin-engine" }
+fusion-socket-protocol = { path = "crates/fusion-socket-protocol" }
 
 ### Other
 wasmtime = { version = "41.0.2", features = ["async"] }
@@ -113,6 +118,8 @@ wit-bindgen = "0.52.0"
 
 ### [UTILS]
 derive_more = { version = "2.1.1", features = ["from", "display"] }
+postcard = { version = "1.1.3", features = ["use-std"] }
+comfy-table = "7.2.2"
 
 ### [BUILD]
 cc = "1.2.55"

@@ -162,6 +162,7 @@ pub fn init_compositor(
                             state.loop_signal.stop();
                         }
                         WinitEvent::Redraw => {
+                            state.handle_socket();
                             state.engine.load_packages();
                         }
                     });

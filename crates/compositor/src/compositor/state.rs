@@ -3,10 +3,15 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    io::{Read, Write},
+    os::unix::net::{UnixListener, UnixStream},
     rc::Rc,
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use fusion_socket_protocol::{
+    CompositorRequest, CompositorResponse, FUSION_CTL_SOCKET_DEFAULT, Plugin,
+};
 use graphics::{InternalClient, graphics::Graphics};
 use slotmap::SlotMap;
 use smithay::{
@@ -52,6 +57,7 @@ use wayland_server::{
     backend::ObjectId,
     protocol::{wl_seat::WlSeat, wl_surface::WlSurface},
 };
+use zip::unstable::stream;
 
 use crate::compositor::{
     ClientState,
@@ -83,6 +89,8 @@ pub struct App<B: Backend + 'static> {
 
     pub backend: B,
 
+    pub socket: UnixListener,
+
     pub engine: PluginEngine<CompositorContext>,
 
     pub globals: Arc<Mutex<CompositorGlobals>>,
@@ -92,6 +100,62 @@ pub struct App<B: Backend + 'static> {
 impl<B: Backend> App<B> {
     pub fn globals(&self) -> MutexGuard<'_, CompositorGlobals> {
         self.globals.lock().unwrap()
+    }
+
+    fn get_plugins(&self, stream: &mut UnixStream) -> CompositorResponse {
+        let mut plugins = Vec::new();
+        for id in self.engine.get_plugins() {
+            let plugin = if let Some(env) = self.engine.get_plugin_env_by_id(&id) {
+                Plugin {
+                    id: id.to_string(),
+                    name: env.manifest().name().to_string(),
+                    status: "Running".to_string(),
+                    version: env.manifest().version().to_string(),
+                }
+            } else {
+                let failed = self.engine.get_failed_plugin_by_id(&id).unwrap();
+                Plugin {
+                    id: id.to_string(),
+                    name: failed.manifest().name().to_string(),
+                    status: "Failed".to_string(),
+                    version: failed.manifest().version().to_string(),
+                }
+            };
+
+            plugins.push(plugin);
+        }
+
+        CompositorResponse::Plugins(plugins)
+    }
+
+    fn restart_plugin(&mut self, plugin_id: &str) -> CompositorResponse {
+        self.engine.restart_plugin(plugin_id);
+        CompositorResponse::Ok
+    }
+
+    pub fn handle_socket(&mut self) {
+        match self.socket.accept() {
+            Ok((mut stream, addr)) => {
+                let mut buf = Vec::new();
+                let mut byte = [0u8; 1];
+                loop {
+                    stream.read_exact(&mut byte).unwrap();
+                    if byte[0] == 0x00 {
+                        break;
+                    }
+                    buf.push(byte[0]);
+                }
+
+                let response =
+                    match postcard::from_bytes_cobs::<CompositorRequest>(&mut buf).unwrap() {
+                        CompositorRequest::GetPlugins => self.get_plugins(&mut stream),
+                        CompositorRequest::Restart { plugin_id } => self.restart_plugin(&plugin_id),
+                    };
+                let response_data = postcard::to_stdvec_cobs(&response).unwrap();
+                stream.write_all(&response_data).unwrap();
+            }
+            Err(error) => {}
+        }
     }
 }
 
@@ -158,6 +222,9 @@ impl<B: Backend> App<B> {
             GeneralCapabilityProvider,
         );
 
+        let socket = UnixListener::bind(FUSION_CTL_SOCKET_DEFAULT)?;
+        socket.set_nonblocking(true)?;
+
         Ok(Self {
             compositor_state,
             data_device_state,
@@ -174,6 +241,7 @@ impl<B: Backend> App<B> {
             engine,
             globals,
             mapped_surfaces: HashMap::new(),
+            socket,
         })
     }
 
@@ -304,9 +372,7 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
             .fusion_compositor_wm_exports()
             .call_new_toplevel(&mut store, window_id.into());
         let elapsed = now.elapsed();
-        log::warn!("New toplevel creation took {:?}", elapsed);
-
-        //self.rearrange_windows();
+        log::warn!("New toplevel creation took {elapsed:?}");
     }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {

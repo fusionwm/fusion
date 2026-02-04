@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+fusion-socket-protocol.workspace = true
 plugin-engine.workspace = true
 tracy-client.workspace = true
 graphics.workspace = true
@@ -34,6 +35,8 @@ slotmap.workspace = true
 
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+postcard.workspace = true
 
 [build-dependencies]
 cc.workspace = true
