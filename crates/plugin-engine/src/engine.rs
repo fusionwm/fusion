@@ -14,7 +14,7 @@ use std::{
     fmt::Display,
     path::{Path, PathBuf},
 };
-use wasmtime::{Engine, Store};
+use wasmtime::{Engine, InstanceAllocationStrategy, Store};
 use wasmtime::{
     StoreContextMut,
     component::{Component, Linker},
@@ -121,7 +121,12 @@ impl<I: InnerContext> PluginEngine<I> {
         log::debug!("[Engine] Initializing...");
         Self::ensure_directory_exists()?;
 
-        let engine = Engine::default();
+        let mut config = wasmtime::Config::new();
+        config.cranelift_opt_level(wasmtime::OptLevel::Speed);
+        config.compiler_inlining(true);
+        config.wasm_simd(true);
+        config.allocation_strategy(InstanceAllocationStrategy::pooling());
+        let engine = Engine::new(&config)?;
         let loader = PluginLoader::new::<I>(loader_config)?;
 
         Ok(Self {
