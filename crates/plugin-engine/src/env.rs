@@ -6,7 +6,7 @@ use wasmtime::component::{Component, Linker};
 
 use crate::{
     context::ExecutionContext,
-    engine::{Bindings, InnerContext, PluginStatus},
+    engine::{Bindings, InnerContext},
     general::General,
     manifest::Manifest,
     table::CapabilityTable,
@@ -17,7 +17,6 @@ pub struct PluginEnvironment<I: InnerContext> {
     path: PathBuf,
     manifest: Manifest,
     component: Component,
-    status: PluginStatus,
     bindings: Bindings<I>,
 }
 
@@ -32,9 +31,13 @@ impl<I: InnerContext> PluginEnvironment<I> {
             path,
             manifest,
             component,
-            status: PluginStatus::Running,
             bindings,
         }
+    }
+
+    #[must_use]
+    pub const fn path(&self) -> &PathBuf {
+        &self.path
     }
 
     #[must_use]
@@ -50,11 +53,6 @@ impl<I: InnerContext> PluginEnvironment<I> {
     #[must_use]
     pub const fn component(&self) -> &Component {
         &self.component
-    }
-
-    #[must_use]
-    pub const fn status(&self) -> PluginStatus {
-        self.status
     }
 
     #[must_use]

@@ -7,6 +7,7 @@ use crate::{
     manifest::Manifest,
     table::{CapabilityProvider, CapabilityTable, CapabilityWriteRules},
 };
+use derive_more::Display;
 use serde::Deserialize;
 use std::{
     any::{Any, TypeId},
@@ -56,9 +57,8 @@ pub struct PluginEngine<I: InnerContext> {
     engine: Engine,
     loader: PluginLoader,
     captable: CapabilityTable<I>,
-    plugins: HashMap<PluginID, PluginEnvironment<I>>,
+    plugins: HashMap<PluginID, Plugin<I>>,
     factory: I::Factory,
-    failed: Vec<FailedPlugin>,
 }
 
 pub struct BindingContext<'environment, I: InnerContext, B: UntypedPluginBinding> {
@@ -135,7 +135,6 @@ impl<I: InnerContext> PluginEngine<I> {
             captable: CapabilityTable::default(),
             plugins: HashMap::default(),
             factory,
-            failed: vec![],
         })
     }
 
@@ -155,14 +154,20 @@ impl<I: InnerContext> PluginEngine<I> {
     ) -> BindingContext<'_, I, B> {
         let capability = self.captable.get_capability_by_name(capability);
         let plugin_id = capability.writers().iter().next().unwrap();
-        let environment = self.plugins.get_mut(plugin_id).unwrap();
-        let binding_id = TypeId::of::<B>();
-        let bindings = environment.bindings_mut();
-        let binding = bindings.inner.get(&binding_id).unwrap();
-        let binding = binding.as_any().downcast_ref::<B>().unwrap();
-        BindingContext {
-            store: &mut bindings.store,
-            binding,
+        match self.plugins.get_mut(plugin_id).unwrap() {
+            Plugin::Running(env) => {
+                let binding_id = TypeId::of::<B>();
+                let bindings = env.bindings_mut();
+                let binding = bindings.inner.get(&binding_id).unwrap();
+                let binding = binding.as_any().downcast_ref::<B>().unwrap();
+                BindingContext {
+                    store: &mut bindings.store,
+                    binding,
+                }
+            }
+            Plugin::Failed(_) => {
+                panic!("Failed plugin cannot provide bindings");
+            }
         }
     }
 
@@ -220,7 +225,7 @@ impl<I: InnerContext> PluginEngine<I> {
         path: &Path,
         manifest: &Manifest,
     ) {
-        if let Err(err) = api.call_init(&mut env.bindings_mut().store) {
+        let plugin = if let Err(err) = api.call_init(&mut env.bindings_mut().store) {
             let plugin_id = plugin_id.clone();
             let path = path.to_path_buf();
             let manifest = manifest.clone();
@@ -228,10 +233,12 @@ impl<I: InnerContext> PluginEngine<I> {
             log::error!("[{}] Unable to initialize plugin: {err}", manifest.name(),);
             self.captable
                 .remove_observing(manifest.capabilities(), &plugin_id);
-            self.failed.push(FailedPlugin { path, manifest });
+            Plugin::Failed(FailedPlugin { path, manifest })
         } else {
-            self.plugins.insert(plugin_id, env);
-        }
+            Plugin::Running(env)
+        };
+
+        self.plugins.insert(plugin_id, plugin);
     }
 
     pub fn load_packages(&mut self) {
@@ -267,47 +274,54 @@ impl<I: InnerContext> PluginEngine<I> {
                         err
                     );
                     if !silent_link {
-                        self.failed.push(FailedPlugin {
-                            path: package.path,
-                            manifest: package.manifest,
-                        });
+                        self.plugins.insert(
+                            package.manifest.id().clone(),
+                            Plugin::Failed(FailedPlugin {
+                                path: package.path,
+                                manifest: package.manifest,
+                            }),
+                        );
                     }
                 }
             }
         }
     }
 
-    pub fn restart_plugin(&mut self, plugin_id: impl Into<PluginID>) {
+    pub fn restart_plugin(&mut self, plugin_id: impl Into<PluginID>) -> Result<(), Error> {
         let plugin_id = plugin_id.into();
-        let env = self.plugins.remove(&plugin_id).unwrap();
-        log::info!("[Engine] Restart plugin: {}", env.manifest().name());
-        self.captable
-            .remove_observing(env.manifest().capabilities(), &plugin_id);
-        self.loader.load_plugin(env.path_owned()).unwrap();
+        if let Some(plugin) = self.plugins.remove(&plugin_id) {
+            log::info!("[Engine] Restart plugin: {}", plugin.manifest().name());
+            self.captable
+                .remove_observing(plugin.manifest().capabilities(), &plugin_id);
+            self.loader.load_plugin(plugin.path()).unwrap();
+            Ok(())
+        } else {
+            log::error!("[Engine] Plugin with ID '{plugin_id}' not found");
+            Err(Error::PluginNotFound(plugin_id.to_string()))
+        }
     }
 
-    pub fn get_plugins(&self) -> Vec<PluginID> {
+    pub fn get_plugin_list(&self) -> Vec<PluginID> {
+        self.plugins.keys().cloned().collect()
+    }
+
+    pub fn get_failed_plugins(&self) -> Vec<&FailedPlugin> {
         self.plugins
-            .keys()
-            .chain(self.failed.iter().map(|f| f.manifest.id()))
-            .cloned()
+            .iter()
+            .filter(|(_, v)| matches!(v, Plugin::Failed(_)))
+            .map(|(_, v)| match v {
+                Plugin::Failed(failed) => failed,
+                Plugin::Running(_) => unreachable!(),
+            })
             .collect()
-    }
-
-    pub const fn get_failed_plugins(&self) -> &[FailedPlugin] {
-        self.failed.as_slice()
     }
 
     pub fn load_package(&mut self, path: PathBuf) {
         self.loader.load_plugin(path).unwrap();
     }
 
-    pub fn get_plugin_env_by_id(&self, plugin_id: &PluginID) -> Option<&PluginEnvironment<I>> {
+    pub fn get_plugin_env_by_id(&self, plugin_id: &PluginID) -> Option<&Plugin<I>> {
         self.plugins.get(plugin_id)
-    }
-
-    pub fn get_failed_plugin_by_id(&self, plugin_id: &PluginID) -> Option<&FailedPlugin> {
-        self.failed.iter().find(|f| f.manifest.id() == plugin_id)
     }
 }
 
@@ -315,14 +329,6 @@ pub trait UntypedPluginBinding: 'static {
     fn type_id(&self) -> TypeId;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-}
-
-#[derive(Default, Debug, Copy, Clone)]
-pub enum PluginStatus {
-    #[default]
-    Running,
-    Stopped,
-    Traped,
 }
 
 pub(crate) struct Bindings<I: InnerContext> {
@@ -362,4 +368,54 @@ impl FailedPlugin {
     pub const fn manifest(&self) -> &Manifest {
         &self.manifest
     }
+}
+
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
+pub enum PluginStatus {
+    #[default]
+    Running,
+    Failed,
+}
+
+pub enum Plugin<I: InnerContext> {
+    Running(PluginEnvironment<I>),
+    Failed(FailedPlugin),
+}
+
+impl<I: InnerContext> Plugin<I> {
+    #[must_use]
+    pub const fn manifest(&self) -> &Manifest {
+        match self {
+            Plugin::Running(env) => env.manifest(),
+            Plugin::Failed(failed) => failed.manifest(),
+        }
+    }
+
+    #[must_use]
+    pub fn path(&self) -> PathBuf {
+        match self {
+            Plugin::Running(env) => env.path().clone(),
+            Plugin::Failed(failed) => failed.path().clone(),
+        }
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> &PluginID {
+        match self {
+            Plugin::Running(env) => env.manifest().id(),
+            Plugin::Failed(failed) => failed.manifest().id(),
+        }
+    }
+
+    #[must_use]
+    pub const fn status(&self) -> PluginStatus {
+        match self {
+            Plugin::Running(_) => PluginStatus::Running,
+            Plugin::Failed(_) => PluginStatus::Failed,
+        }
+    }
+}
+
+pub enum Error {
+    PluginNotFound(String),
 }

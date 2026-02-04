@@ -34,7 +34,7 @@ fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
     make_plugin_dirty(&mut engine)?;
 
     {
-        let plugin_id = engine.get_plugins().first().unwrap().clone();
+        let plugin_id = engine.get_plugin_list().first().unwrap().clone();
         engine.restart_plugin(plugin_id);
     }
 

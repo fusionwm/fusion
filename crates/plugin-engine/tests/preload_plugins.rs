@@ -59,7 +59,7 @@ fn preload_plugins() -> Result<(), Box<dyn std::error::Error>> {
 
     wait_one_second(&mut engine);
 
-    assert_eq!(engine.get_plugins().len(), get_packages_count());
+    assert_eq!(engine.get_plugin_list().len(), get_packages_count());
 
     Ok(())
 }

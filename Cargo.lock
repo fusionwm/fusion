@@ -3561,6 +3561,7 @@ dependencies = [
  "anyhow",
  "bitflags 2.10.0",
  "chrono",
+ "derive_more",
  "dirs",
  "env_logger",
  "http-body-util",

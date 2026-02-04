@@ -24,7 +24,8 @@ fn fail_init() -> Result<(), Box<dyn std::error::Error>> {
 
     wait_one_second(&mut engine);
 
-    let module = engine.get_failed_plugins().first().unwrap();
+    let failed = engine.get_failed_plugins();
+    let module = failed.first().unwrap();
     assert!(module.manifest().name() == "fail_init_plugin");
 
     Ok(())
