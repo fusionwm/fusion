@@ -7,11 +7,11 @@ wit_bindgen::generate!({
     world: "general",
 });
 
-pub struct Example;
-impl Guest for Example {
+pub struct WindowManager;
+impl Guest for WindowManager {
     fn init() {
         info("Plugin initialized");
     }
 }
 
-export!(Example);
+export!(WindowManager);

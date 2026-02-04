@@ -1,0 +1,8 @@
+id = "example.fusion.window_manager"
+name = "window_manager"
+version = "0.1.0"
+description = "Simple window manager"
+repository = "https://github.com/fusionwm/fusion"
+authors = []
+
+capabilities = ["compositor.window"]

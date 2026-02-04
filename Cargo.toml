@@ -8,10 +8,11 @@ members = [
     "crates/graphics-derive",
     "crates/graphics-widgets",
     "crates/plugin-engine",
-    "examples/rust",
     "crates/cargo-fusion",
 
-    # Tests
+    "examples/*",
+
+    # Plugin engine tests
     "crates/plugin-engine/tests/plugins/*",
 ]
 

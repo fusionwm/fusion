@@ -2,6 +2,7 @@
 
 use std::{
     cell::RefCell,
+    collections::HashMap,
     rc::Rc,
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -48,6 +49,7 @@ use smithay::{
 };
 use wayland_server::{
     Client, DisplayHandle, Resource,
+    backend::ObjectId,
     protocol::{wl_seat::WlSeat, wl_surface::WlSurface},
 };
 
@@ -55,7 +57,8 @@ use crate::compositor::{
     ClientState,
     api::{
         CompositorContext, CompositorContextFactory, CompositorGlobals, UnsafeCompositorGlobals,
-        general::{Compositor, GeneralCapabilityProvider},
+        WindowKey,
+        general::{Compositor, GeneralCapabilityProvider, fusion::compositor::types::WindowId},
     },
     backend::Backend,
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
@@ -83,6 +86,7 @@ pub struct App<B: Backend + 'static> {
     pub engine: PluginEngine<CompositorContext>,
 
     pub globals: Arc<Mutex<CompositorGlobals>>,
+    pub mapped_surfaces: HashMap<ObjectId, WindowKey>,
 }
 
 impl<B: Backend> App<B> {
@@ -169,6 +173,7 @@ impl<B: Backend> App<B> {
 
             engine,
             globals,
+            mapped_surfaces: HashMap::new(),
         })
     }
 
@@ -205,60 +210,11 @@ impl<B: Backend> App<B> {
             .get_single_write_bindings::<Compositor>("compositor.window");
         let mut store = bindings.store();
 
-        bindings.call_rearrange_windows(&mut store).unwrap();
+        bindings
+            .fusion_compositor_wm_exports()
+            .call_rearrange_windows(&mut store)
+            .unwrap();
     }
-
-    /*
-    fn rearrange_windows(&mut self) {
-        let all_windows: Vec<_> = self.space.elements().cloned().collect();
-        let count = all_windows.len();
-        if count == 0 {
-            return;
-        }
-
-        // 1. Берем первый попавшийся output из пространства
-        let (screen_width, screen_height) = if let Some(output) = self.space.outputs().next() {
-            // 2. Получаем текущее состояние (resolution, scale и т.д.)
-            let current_mode = output.current_mode().expect("Output has no mode set");
-
-            // Физическое разрешение (например, 1920x1080)
-            let physical_size = current_mode.size;
-
-            // 3. Чтобы тайлинг работал корректно с HiDPI, лучше брать логический размер
-            let geometry = self
-                .space
-                .output_geometry(output)
-                .expect("Output not in space");
-            let screen_width = geometry.size.w;
-            let screen_height = geometry.size.h;
-
-            //println!("Размер экрана: {}x{}", screen_width, screen_height);
-            // Допустим, мы делим экран вертикально на равные части
-            (screen_width, screen_height)
-        } else {
-            panic!("TODO!")
-        };
-
-        let width_per_window = screen_width / count as i32;
-        println!("Width per window: {width_per_window}");
-
-        for (i, window) in all_windows.into_iter().enumerate() {
-            let x_pos = i as i32 * width_per_window;
-            let y_pos = 0;
-
-            // Обновляем позицию окна
-            self.space.map_element(window.clone(), (x_pos, y_pos), true);
-
-            // ВАЖНО: Отправляем клиенту команду изменить размер самого окна!
-            // Без этого приложение будет думать, что оно все еще 0x0 или другого размера.
-            let surface = window.toplevel().unwrap();
-            surface.with_pending_state(|state| {
-                state.size = Some((width_per_window, 1080).into());
-            });
-            surface.send_configure();
-        }
-    }
-    */
 }
 
 delegate_seat!(@<B: Backend + 'static> App<B>);
@@ -326,16 +282,54 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
-        let window = Window::new_wayland_window(surface);
-        {
+        let id = surface.wl_surface().id();
+        let window = Window::new_wayland_window(surface.clone());
+
+        let window_id = {
             let mut globals = self.globals.lock().unwrap();
             let space = &mut globals.space;
 
             space.map_element(window.clone(), (0, 0), false);
-            globals.mapped_windows.insert(window);
-        }
+            globals.mapped_windows.insert(window)
+        };
 
-        self.rearrange_windows();
+        self.mapped_surfaces.insert(id, window_id);
+
+        let mut bindings = self
+            .engine
+            .get_single_write_bindings::<Compositor>("compositor.window");
+        let mut store = bindings.store();
+        let now = std::time::Instant::now();
+        bindings
+            .fusion_compositor_wm_exports()
+            .call_new_toplevel(&mut store, window_id.into());
+        let elapsed = now.elapsed();
+        log::warn!("New toplevel creation took {:?}", elapsed);
+
+        //self.rearrange_windows();
+    }
+
+    fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
+        let surface_id = surface.wl_surface().id();
+
+        let window_id = {
+            let mut globals = self.globals.lock().unwrap();
+            let window_id = self.mapped_surfaces.remove(&surface_id).unwrap();
+            let window = globals.mapped_windows.remove(window_id).unwrap();
+            let space = &mut globals.space;
+            space.unmap_elem(&window);
+            window_id
+        };
+
+        let mut bindings = self
+            .engine
+            .get_single_write_bindings::<Compositor>("compositor.window");
+        let mut store = bindings.store();
+
+        bindings
+            .fusion_compositor_wm_exports()
+            .call_toplevel_destroyed(&mut store, window_id.into())
+            .unwrap();
     }
 
     fn new_popup(&mut self, surface: PopupSurface, _positioner: PositionerState) {

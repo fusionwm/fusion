@@ -1,12 +1,15 @@
 use std::{
     collections::HashMap,
+    hash::Hash,
     sync::{Arc, Mutex},
 };
 
 use plugin_engine::{InnerContext, InnerContextFactory};
-use slotmap::{SlotMap, new_key_type};
+use slotmap::{KeyData, SlotMap, new_key_type};
 use smithay::desktop::{Space, Window};
 use wasmtime::component::HasData;
+
+use crate::compositor::api::general::fusion::compositor::types::WindowId;
 
 pub mod general;
 
@@ -81,7 +84,25 @@ impl InnerContextFactory<CompositorContext> for CompositorContextFactory {
     }
 }
 
-new_key_type! { pub struct WindowKey; }
+new_key_type! {
+    pub struct WindowKey;
+}
+
+impl From<WindowId> for WindowKey {
+    #[inline]
+    fn from(id: WindowId) -> Self {
+        Self(KeyData::from_ffi(id.inner))
+    }
+}
+
+impl From<WindowKey> for WindowId {
+    #[inline]
+    fn from(key: WindowKey) -> Self {
+        WindowId {
+            inner: key.0.as_ffi(),
+        }
+    }
+}
 
 pub struct CompositorGlobals {
     pub mapped_windows: SlotMap<WindowKey, Window>,

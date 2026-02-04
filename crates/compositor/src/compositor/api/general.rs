@@ -9,7 +9,10 @@ use slotmap::KeyData;
 
 use crate::compositor::api::{
     CompositorContext, CompositorGlobals, PluginContextType, WindowKey,
-    general::fusion::compositor::window_manager::{self, WindowId},
+    general::fusion::compositor::{
+        types,
+        wm_imports::{self, WindowId},
+    },
 };
 
 bindgen!({
@@ -56,9 +59,9 @@ impl CompositorContext {
     }
 }
 
-impl window_manager::Host for CompositorContext {
+impl wm_imports::Host for CompositorContext {
     fn get_elements(&mut self) -> Vec<WindowId> {
-        let mut compositor = self.compositor_mut();
+        let compositor = self.compositor_mut();
         compositor
             .mapped_windows
             .keys()
@@ -97,15 +100,7 @@ impl window_manager::Host for CompositorContext {
 
     fn get_output_size(&mut self) -> (u32, u32) {
         let compositor = self.compositor();
-        // 1. Берем первый попавшийся output из пространства
         if let Some(output) = compositor.space.outputs().next() {
-            // 2. Получаем текущее состояние (resolution, scale и т.д.)
-            //let current_mode = output.current_mode().expect("Output has no mode set");
-
-            // Физическое разрешение (например, 1920x1080)
-            //let physical_size = current_mode.size;
-
-            // 3. Чтобы тайлинг работал корректно с HiDPI, лучше брать логический размер
             let geometry = compositor
                 .space
                 .output_geometry(output)
@@ -118,4 +113,16 @@ impl window_manager::Host for CompositorContext {
             panic!("TODO!")
         }
     }
+
+    fn send_configure(&mut self, window: WindowId) {
+        let mut compositor = self.compositor();
+        if let Some(window) = compositor
+            .mapped_windows
+            .get_mut(WindowKey(KeyData::from_ffi(window.inner)))
+        {
+            window.toplevel().unwrap().send_configure();
+        }
+    }
 }
+
+impl types::Host for CompositorContext {}
