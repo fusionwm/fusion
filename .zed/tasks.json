@@ -1,8 +1,13 @@
 [
   {
-    "label": "Run Fusion compositor",
+    "label": "Run Fusion compositor (debug)",
     "command": "cargo",
     "args": ["run", "-p", "compositor"],
+  },
+  {
+    "label": "Run Fusion compositor (release)",
+    "command": "cargo",
+    "args": ["run", "-p", "compositor", "--release"],
   },
   {
     "label": "Install cargo-fusion",
