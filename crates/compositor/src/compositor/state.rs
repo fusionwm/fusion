@@ -228,6 +228,10 @@ impl<B: Backend> App<B> {
             GeneralCapabilityProvider,
         );
 
+        if std::fs::exists(FUSION_CTL_SOCKET_DEFAULT)? {
+            std::fs::remove_file(FUSION_CTL_SOCKET_DEFAULT)?;
+        }
+
         let socket = UnixListener::bind(FUSION_CTL_SOCKET_DEFAULT)?;
         socket.set_nonblocking(true)?;
 
