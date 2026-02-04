@@ -1,7 +1,6 @@
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
-pub const FUSION_CTL_SOCKET_VAR: &str = "FUSION_CTL_SOCKET";
 pub const FUSION_CTL_SOCKET_DEFAULT: &str = "/tmp/fusion-ctl.sock";
 
 #[derive(Serialize, Deserialize)]

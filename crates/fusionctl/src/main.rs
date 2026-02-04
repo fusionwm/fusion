@@ -8,7 +8,7 @@ use comfy_table::{
     Cell, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL,
 };
 use fusion_socket_protocol::{
-    CompositorRequest, FUSION_CTL_SOCKET_VAR, GetPluginListRequest, GetPluginListResponse,
+    CompositorRequest, FUSION_CTL_SOCKET_DEFAULT, GetPluginListRequest, GetPluginListResponse,
     PingRequest, PingResponse, Plugin, RestartPluginRequest, RestartPluginResponse,
 };
 
@@ -49,10 +49,6 @@ fn print_plugin_table(plugins: &[Plugin]) {
         ]);
     }
 
-    // Set the default alignment for the third column to right
-    //let column = table.column_mut(2).expect("Our table has three columns");
-    //column.set_cell_alignment(CellAlignment::Right);
-
     println!("{table}");
 }
 
@@ -81,14 +77,9 @@ fn read_request(socket: &mut UnixStream) -> Vec<u8> {
 }
 
 fn main() -> anyhow::Result<()> {
-    //let path = std::env::var(FUSION_CTL_SOCKET_VAR)
-    //    .expect("FUSION_CTL_SOCKET environment variable is not set");
-
-    let path = fusion_socket_protocol::FUSION_CTL_SOCKET_DEFAULT;
-
     let cli = Cli::parse();
 
-    let mut socket = UnixStream::connect(path)?;
+    let mut socket = UnixStream::connect(FUSION_CTL_SOCKET_DEFAULT)?;
     match cli.command {
         Commands::Ping => {
             send_request(&mut socket, PingRequest)?;
