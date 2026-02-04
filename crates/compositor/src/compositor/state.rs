@@ -10,8 +10,8 @@ use std::{
 };
 
 use fusion_socket_protocol::{
-    CompositorRequest, FUSION_CTL_SOCKET_DEFAULT, GetPluginListResponse, PingResponse, Plugin,
-    RestartPluginResponse,
+    CompositorRequest, ExitResponse, FUSION_CTL_SOCKET_DEFAULT, GetPluginListResponse,
+    PingResponse, Plugin, RestartPluginResponse,
 };
 use graphics::{InternalClient, graphics::Graphics};
 use slotmap::SlotMap;
@@ -103,6 +103,12 @@ impl<B: Backend> App<B> {
         self.globals.lock().unwrap()
     }
 
+    pub fn exit(stream: &mut UnixStream) {
+        let response_data = postcard::to_stdvec_cobs(&ExitResponse).unwrap();
+        stream.write_all(&response_data).unwrap();
+        std::process::exit(0);
+    }
+
     fn ping(stream: &mut UnixStream) {
         let response_data = postcard::to_stdvec_cobs(&PingResponse).unwrap();
         stream.write_all(&response_data).unwrap();
@@ -153,6 +159,7 @@ impl<B: Backend> App<B> {
                 }
 
                 match postcard::from_bytes_cobs::<CompositorRequest>(&mut buf).unwrap() {
+                    CompositorRequest::Exit(_) => Self::exit(&mut stream),
                     CompositorRequest::Ping(_) => Self::ping(&mut stream),
                     CompositorRequest::GetPluginList(_) => self.get_plugin_list(&mut stream),
                     CompositorRequest::RestartPlugin(request) => {

@@ -8,8 +8,9 @@ use comfy_table::{
     Cell, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL,
 };
 use fusion_socket_protocol::{
-    CompositorRequest, FUSION_CTL_SOCKET_DEFAULT, GetPluginListRequest, GetPluginListResponse,
-    PingRequest, PingResponse, Plugin, RestartPluginRequest, RestartPluginResponse,
+    CompositorRequest, ExitRequest, ExitResponse, FUSION_CTL_SOCKET_DEFAULT, GetPluginListRequest,
+    GetPluginListResponse, PingRequest, PingResponse, Plugin, RestartPluginRequest,
+    RestartPluginResponse,
 };
 
 #[derive(Parser)]
@@ -20,6 +21,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    Exit,
     Ping,
     #[command(subcommand)]
     Plugins(PluginCommands),
@@ -81,6 +83,11 @@ fn main() -> anyhow::Result<()> {
 
     let mut socket = UnixStream::connect(FUSION_CTL_SOCKET_DEFAULT)?;
     match cli.command {
+        Commands::Exit => {
+            send_request(&mut socket, ExitRequest)?;
+            let mut bytes = read_request(&mut socket);
+            postcard::from_bytes_cobs::<ExitResponse>(&mut bytes)?;
+        }
         Commands::Ping => {
             send_request(&mut socket, PingRequest)?;
             let mut bytes = read_request(&mut socket);

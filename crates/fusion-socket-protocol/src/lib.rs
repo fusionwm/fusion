@@ -35,8 +35,14 @@ pub struct PingRequest;
 #[derive(Serialize, Deserialize)]
 pub struct PingResponse;
 
+#[derive(Serialize, Deserialize)]
+pub struct ExitRequest;
+#[derive(Serialize, Deserialize)]
+pub struct ExitResponse;
+
 #[derive(Serialize, Deserialize, From)]
 pub enum CompositorRequest {
+    Exit(ExitRequest),
     Ping(PingRequest),
     GetPluginList(GetPluginListRequest),
     RestartPlugin(RestartPluginRequest),
