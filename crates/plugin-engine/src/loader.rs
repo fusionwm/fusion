@@ -10,7 +10,6 @@ use std::{
 };
 
 use anyhow::Context;
-use derive_more::Display;
 use notify::{
     RecursiveMode, Watcher,
     event::{ModifyKind, RenameMode},
@@ -48,10 +47,8 @@ impl LoaderConfig {
     }
 }
 
-#[derive(Display)]
 enum Request {
     GetPlugins,
-    #[display("LoadPlugin({_0:?})")]
     LoadPlugin(PathBuf),
 }
 
