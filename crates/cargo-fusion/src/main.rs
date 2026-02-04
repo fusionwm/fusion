@@ -80,6 +80,8 @@ impl BuildEnvironment {
             target.join("plugins")
         };
 
+        std::fs::create_dir_all(&output)?;
+
         let output_file = output.join(&plugin_name).with_extension("fsp");
 
         Ok(Self {
