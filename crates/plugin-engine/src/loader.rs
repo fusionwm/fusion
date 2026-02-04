@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
+use derive_more::Display;
 use notify::{
     RecursiveMode, Watcher,
     event::{ModifyKind, RenameMode},
@@ -47,8 +48,10 @@ impl LoaderConfig {
     }
 }
 
+#[derive(Display)]
 enum Request {
     GetPlugins,
+    #[display("LoadPlugin({_0:?})")]
     LoadPlugin(PathBuf),
 }
 
@@ -102,7 +105,7 @@ pub(crate) struct PluginLoader {
 
 impl PluginLoader {
     pub fn new<I: InnerContext>(config: LoaderConfig) -> Result<Self, Box<dyn std::error::Error>> {
-        log::debug!("[Engine] Initializing plugin loader");
+        log::debug!("[Engine] Initializing loader...");
         let (request_sender, request_receiver) = std::sync::mpsc::channel();
         let (answer_sender, answer_receiver) = std::sync::mpsc::channel();
         let loader = InnerPluginLoader::new(request_receiver, answer_sender, &I::plugins_path())?;
@@ -289,15 +292,16 @@ impl InnerPluginLoader {
     fn handle_events(&mut self) {
         self.handle_engine_requests();
 
-        match self.watcher_rx.recv() {
+        match self.watcher_rx.try_recv() {
             Ok(event) => match event {
                 Ok(event) => {
                     self.handle_file_event(event);
                 }
                 Err(err) => log::error!("[Loader] Error receiving file event: {err}"),
             },
-            Err(err) => {
-                log::error!("[Loader] Error watching plugins directory: {err}");
+            Err(_) => {
+                //TODO
+                //log::error!("[Loader] Error watching plugins directory: {err}");
             }
         }
     }

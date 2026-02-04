@@ -9,7 +9,9 @@ mod context;
 
 #[test]
 fn fail_init() -> Result<(), Box<dyn std::error::Error>> {
-    initialize();
+    const PLUGIN: &str = "fail_init_plugin";
+    const PLUGIN_FILE: &str = "fail_init_plugin_1.0.fsp";
+    initialize(&[PLUGIN]);
 
     let mut engine = PluginEngine::<Empty>::new(
         EmptyFactory,
@@ -18,7 +20,7 @@ fn fail_init() -> Result<(), Box<dyn std::error::Error>> {
             .manual_loading(false),
     )?;
 
-    engine.load_package(PLUGINS_PATH.path().join("fail_init_plugin_1.0.fsp"));
+    engine.load_package(PLUGINS_PATH.path().join(PLUGIN_FILE));
 
     wait_one_second(&mut engine);
 

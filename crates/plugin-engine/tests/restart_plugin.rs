@@ -2,7 +2,10 @@ use plugin_engine::{PluginEngine, loader::LoaderConfig, table::CapabilityWriteRu
 
 use crate::{
     common::{PLUGINS_PATH, initialize, wait_one_second},
-    context::call_api::{CallApi, CallApiCapProvider, CallApiFactory, TestsApi},
+    context::call_api::{
+        CallApi, CallApiCapProvider, CallApiFactory, PLUGIN, PLUGIN_FILE, check_plugin_clean,
+        make_plugin_dirty,
+    },
 };
 
 mod common;
@@ -10,7 +13,7 @@ mod context;
 
 #[test]
 fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
-    initialize();
+    initialize(&[PLUGIN]);
 
     let mut engine = PluginEngine::<CallApi>::new(
         CallApiFactory,
@@ -25,19 +28,10 @@ fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
         CallApiCapProvider,
     );
 
-    engine.load_package(PLUGINS_PATH.path().join("call_api_plugin_1.0.fsp"));
+    engine.load_package(PLUGINS_PATH.path().join(PLUGIN_FILE));
 
     wait_one_second(&mut engine);
-
-    {
-        let mut api = engine.get_single_write_bindings::<TestsApi>("tests-api");
-        let mut store = api.store();
-
-        assert!(api.call_get_value(&mut store)? == 0);
-        api.call_add_value(&mut store, 42)?;
-
-        assert!(api.call_get_value(&mut store)? == 42);
-    }
+    make_plugin_dirty(&mut engine)?;
 
     {
         let plugin_id = engine.get_plugins().first().unwrap().clone();
@@ -45,13 +39,7 @@ fn restart_plugin() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     wait_one_second(&mut engine);
-
-    {
-        let mut api = engine.get_single_write_bindings::<TestsApi>("tests-api");
-        let mut store = api.store();
-
-        assert!(api.call_get_value(&mut store)? == 0);
-    }
+    check_plugin_clean(&mut engine)?;
 
     Ok(())
 }

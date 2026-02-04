@@ -3,14 +3,18 @@
 use std::path::PathBuf;
 
 use plugin_engine::{
-    InnerContext, InnerContextFactory, UntypedPluginBinding,
+    InnerContext, InnerContextFactory, PluginEngine, UntypedPluginBinding,
     context::ExecutionContext,
     impl_untyped_plugin_binding,
-    table::CapabilityProvider,
+    loader::LoaderConfig,
+    table::{CapabilityProvider, CapabilityWriteRules},
     wasm::{Component, Linker, Store},
 };
 
 use crate::common::{CONFIG_PATH, LOGS_PATH, PLUGINS_PATH};
+
+pub const PLUGIN: &str = "call_api_plugin";
+pub const PLUGIN_FILE: &str = "call_api_plugin_1.0.fsp";
 
 plugin_engine::wasm::bindgen!({
     path: "tests/wit",
@@ -59,3 +63,44 @@ impl CapabilityProvider for CallApiCapProvider {
 }
 
 impl_untyped_plugin_binding!(TestsApi);
+
+pub fn check_plugin_clean(
+    engine: &mut PluginEngine<CallApi>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut api = engine.get_single_write_bindings::<TestsApi>("tests-api");
+    let mut store = api.store();
+
+    assert!(api.call_get_value(&mut store)? == 0);
+
+    Ok(())
+}
+
+pub fn make_plugin_dirty(
+    engine: &mut PluginEngine<CallApi>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut api = engine.get_single_write_bindings::<TestsApi>("tests-api");
+    let mut store = api.store();
+
+    assert!(api.call_get_value(&mut store)? == 0);
+
+    api.call_add_value(&mut store, 42)?;
+
+    assert!(api.call_get_value(&mut store)? == 42);
+
+    Ok(())
+}
+
+pub fn prepare_engine() -> Result<PluginEngine<CallApi>, Box<dyn std::error::Error>> {
+    let mut engine = PluginEngine::<CallApi>::new(
+        CallApiFactory,
+        LoaderConfig::default()
+            .enable_preload(false)
+            .manual_loading(false),
+    )?;
+    engine.add_capability(
+        "tests-api",
+        CapabilityWriteRules::SingleWrite,
+        CallApiCapProvider,
+    );
+    Ok(engine)
+}

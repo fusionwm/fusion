@@ -118,7 +118,7 @@ impl<I: InnerContext> PluginEngine<I> {
         factory: I::Factory,
         loader_config: LoaderConfig,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        log::debug!("[Engine] Initializing plugin engine");
+        log::debug!("[Engine] Initializing...");
         Self::ensure_directory_exists()?;
 
         let engine = Engine::default();
@@ -178,7 +178,7 @@ impl<I: InnerContext> PluginEngine<I> {
         package: FusionPackage,
         silent_link: bool,
     ) -> Result<(General, PluginID, PluginEnvironment<I>), Box<dyn std::error::Error>> {
-        log::warn!("[{}] Preparing module", package.manifest.name());
+        log::warn!("[{}] Preparing plugin", package.manifest.name());
 
         let plugin_id = PluginID(package.manifest.id().to_string());
         let mut linker = self.create_linker()?;

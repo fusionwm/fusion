@@ -44,15 +44,14 @@ fn execute_cargo_fusion(working_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_plugins() -> anyhow::Result<()> {
-    let plugins = std::env::current_dir()?.join("tests").join("tests_plugins");
-    let dir = std::fs::read_dir(plugins)?;
-    for entry in dir {
-        let entry = entry?;
-        if !entry.file_type().unwrap().is_dir() {
+fn build_plugins(files: &[&str]) -> anyhow::Result<()> {
+    let plugins = std::env::current_dir()?.join("tests").join("plugins");
+    for file in files {
+        let plugin_path = plugins.join(file);
+        if !plugin_path.is_dir() {
             continue;
         }
-        execute_cargo_fusion(&entry.path())?;
+        execute_cargo_fusion(&plugin_path)?;
     }
 
     Ok(())
@@ -60,10 +59,10 @@ fn build_plugins() -> anyhow::Result<()> {
 
 static INIT: Once = Once::new();
 
-pub fn initialize() {
+pub fn initialize(files: &[&str]) {
     INIT.call_once(|| {
         setup_logging();
-        build_plugins().unwrap();
+        build_plugins(files).unwrap();
     });
 }
 

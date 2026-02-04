@@ -40,11 +40,14 @@ fn get_packages_count() -> usize {
 
 #[test]
 fn preload_plugins() -> Result<(), Box<dyn std::error::Error>> {
-    initialize();
+    const PLUGIN: &str = "empty_plugin";
+    const PLUGIN_FILE: &str = "empty_plugin_1.0.fsp";
+
+    initialize(&[PLUGIN]);
 
     std::fs::copy(
-        PLUGINS_PATH.path().join("empty_plugin_1.0.fsp"),
-        OTHER_PLUGINS_PATH.path().join("empty_plugin_1.0.fsp"),
+        PLUGINS_PATH.path().join(PLUGIN_FILE),
+        OTHER_PLUGINS_PATH.path().join(PLUGIN_FILE),
     )?;
 
     let mut engine = PluginEngine::<Empty<OverridePaths>>::new(
