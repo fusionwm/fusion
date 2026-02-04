@@ -287,7 +287,11 @@ impl<I: InnerContext> PluginEngine<I> {
     }
 
     pub fn get_plugins(&self) -> Vec<PluginID> {
-        self.plugins.keys().cloned().collect()
+        self.plugins
+            .keys()
+            .chain(self.failed.iter().map(|f| f.manifest.id()))
+            .cloned()
+            .collect()
     }
 
     pub const fn get_failed_plugins(&self) -> &[FailedPlugin] {
