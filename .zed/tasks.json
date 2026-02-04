@@ -1,5 +1,10 @@
 [
   {
+    "label": "Run Fusion compositor",
+    "command": "cargo",
+    "args": ["run", "-p", "compositor"],
+  },
+  {
     "label": "Install cargo-fusion",
     "command": "cargo",
     "args": ["install", "--path", "crates/cargo-fusion"],
