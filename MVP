@@ -1,5 +1,6 @@
 [0.2]
     [Compositor]
+        Simple window management (plugin)
         Control utility
 
     [Plugin engine]
@@ -7,6 +8,11 @@
         [DONE] Plugin auto detection
         [DONE] Plugin auto loading
         [DONE] Hot swap
-        [WIP] Tests
-        Hot reload
+        [DONE] Tests
+
+[0.3]
+    [Compositor]
+        DRM
+        Hot swap (save state)
+        Hot reload (save state)
         Logs
