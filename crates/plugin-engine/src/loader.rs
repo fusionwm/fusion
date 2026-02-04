@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
-        mpsc::{Receiver, Sender},
+        mpsc::{Receiver, Sender, TryRecvError},
     },
     time::Duration,
 };
@@ -296,9 +296,11 @@ impl InnerPluginLoader {
                 }
                 Err(err) => log::error!("[Loader] Error receiving file event: {err}"),
             },
-            Err(_) => {
-                //TODO
-                //log::error!("[Loader] Error watching plugins directory: {err}");
+            Err(error) => {
+                // Ignore empty receive errors
+                if TryRecvError::Empty == error {
+                    log::error!("[Loader] Error watching plugins directory: {error}");
+                }
             }
         }
     }
