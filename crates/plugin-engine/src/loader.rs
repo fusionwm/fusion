@@ -297,8 +297,8 @@ impl InnerPluginLoader {
                 Err(err) => log::error!("[Loader] Error receiving file event: {err}"),
             },
             Err(error) => {
-                // Ignore empty receive errors
-                if TryRecvError::Empty == error {
+                // Ignore TryRecvError::Empty
+                if TryRecvError::Disconnected == error {
                     log::error!("[Loader] Error watching plugins directory: {error}");
                 }
             }
