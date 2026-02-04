@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[allow(dead_code)]
-pub(crate) struct PluginEnvironment<I: InnerContext> {
+pub struct PluginEnvironment<I: InnerContext> {
     path: PathBuf,
     manifest: Manifest,
     component: Component,
@@ -22,7 +22,7 @@ pub(crate) struct PluginEnvironment<I: InnerContext> {
 }
 
 impl<I: InnerContext> PluginEnvironment<I> {
-    pub const fn new(
+    pub(crate) const fn new(
         path: PathBuf,
         manifest: Manifest,
         component: Component,
@@ -58,11 +58,11 @@ impl<I: InnerContext> PluginEnvironment<I> {
     }
 
     #[must_use]
-    pub fn bindings_mut(&mut self) -> &mut Bindings<I> {
+    pub(crate) fn bindings_mut(&mut self) -> &mut Bindings<I> {
         &mut self.bindings
     }
 
-    pub fn instantiate_general_api(
+    pub(crate) fn instantiate_general_api(
         &mut self,
         linker: &Linker<ExecutionContext<I>>,
     ) -> Result<General, Box<dyn std::error::Error>> {
@@ -73,7 +73,7 @@ impl<I: InnerContext> PluginEnvironment<I> {
         )?)
     }
 
-    pub fn create_bindings(
+    pub(crate) fn create_bindings(
         &mut self,
         linker: &mut Linker<ExecutionContext<I>>,
         captable: &mut CapabilityTable<I>,
