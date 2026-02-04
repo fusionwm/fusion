@@ -12,6 +12,7 @@
 
 [0.3]
     [Compositor]
+        Trap handling
         DRM
         Hot swap (save state)
         Hot reload (save state)
