@@ -25,8 +25,7 @@ fn setup_logging() {
         .init();
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     Client::start();
     setup_logging();
 
