@@ -1,7 +1,7 @@
 [0.2]
     [Compositor]
-        Simple window management (plugin)
-        Control utility
+        [DONE] Simple window management (plugin)
+        [DONE] Control utility
 
     [Plugin engine]
         [DONE] Plugin reloading
