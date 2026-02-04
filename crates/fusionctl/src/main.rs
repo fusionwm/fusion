@@ -8,7 +8,8 @@ use comfy_table::{
     Cell, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL,
 };
 use fusion_socket_protocol::{
-    CompositorRequest, CompositorResponse, FUSION_CTL_SOCKET_VAR, Plugin,
+    CompositorRequest, FUSION_CTL_SOCKET_VAR, GetPluginListRequest, GetPluginListResponse,
+    PingRequest, PingResponse, Plugin, RestartPluginRequest, RestartPluginResponse,
 };
 
 #[derive(Parser)]
@@ -19,17 +20,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    Ping,
     #[command(subcommand)]
-    List(ListCommand),
-    Restart {
-        plugin_id: String,
-    },
+    Plugins(PluginCommands),
 }
 
 #[derive(Subcommand, Clone, Debug)]
 #[clap(rename_all = "snake_case")]
-enum ListCommand {
-    Plugins,
+enum PluginCommands {
+    List,
+    Restart { plugin_id: String },
 }
 
 fn print_plugin_table(plugins: &[Plugin]) {
@@ -56,8 +56,12 @@ fn print_plugin_table(plugins: &[Plugin]) {
     println!("{table}");
 }
 
-fn send_request(socket: &mut UnixStream, request: &CompositorRequest) -> anyhow::Result<()> {
-    let buf = postcard::to_stdvec_cobs(request).unwrap();
+fn send_request(
+    socket: &mut UnixStream,
+    request: impl Into<CompositorRequest>,
+) -> anyhow::Result<()> {
+    let request = request.into();
+    let buf = postcard::to_stdvec_cobs(&request).unwrap();
     socket.write_all(&buf)?;
     Ok(())
 }
@@ -86,27 +90,32 @@ fn main() -> anyhow::Result<()> {
 
     let mut socket = UnixStream::connect(path)?;
     match cli.command {
-        Commands::List(command) => match command {
-            ListCommand::Plugins => {
-                send_request(&mut socket, &CompositorRequest::GetPlugins)?;
+        Commands::Ping => {
+            send_request(&mut socket, PingRequest)?;
+            let mut bytes = read_request(&mut socket);
+
+            postcard::from_bytes_cobs::<PingResponse>(&mut bytes)?;
+            println!("Pong!");
+        }
+        Commands::Plugins(command) => match command {
+            PluginCommands::List => {
+                send_request(&mut socket, GetPluginListRequest)?;
                 let mut bytes = read_request(&mut socket);
 
-                match postcard::from_bytes_cobs::<CompositorResponse>(&mut bytes)? {
-                    CompositorResponse::Plugins(plugins) => print_plugin_table(&plugins),
-                    CompositorResponse::Error(_) => println!("Error"),
-                    CompositorResponse::Ok => println!("OK"),
+                match postcard::from_bytes_cobs::<GetPluginListResponse>(&mut bytes)? {
+                    GetPluginListResponse::Ok(plugins) => print_plugin_table(&plugins),
+                    GetPluginListResponse::Error(error) => println!("Error: {error}"),
+                }
+            }
+            PluginCommands::Restart { plugin_id } => {
+                send_request(&mut socket, RestartPluginRequest { plugin_id })?;
+                let mut bytes = read_request(&mut socket);
+                match postcard::from_bytes_cobs::<RestartPluginResponse>(&mut bytes)? {
+                    RestartPluginResponse::Ok => println!("Ok"),
+                    RestartPluginResponse::Error(error) => println!("Error: {error}"),
                 }
             }
         },
-        Commands::Restart { plugin_id } => {
-            send_request(&mut socket, &CompositorRequest::Restart { plugin_id })?;
-            let mut bytes = read_request(&mut socket);
-            match postcard::from_bytes_cobs::<CompositorResponse>(&mut bytes)? {
-                CompositorResponse::Plugins(plugins) => unreachable!(),
-                CompositorResponse::Error(_) => println!("Error"),
-                CompositorResponse::Ok => println!("OK"),
-            }
-        }
     }
 
     Ok(())

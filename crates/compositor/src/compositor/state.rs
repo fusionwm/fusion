@@ -10,7 +10,8 @@ use std::{
 };
 
 use fusion_socket_protocol::{
-    CompositorRequest, CompositorResponse, FUSION_CTL_SOCKET_DEFAULT, Plugin,
+    CompositorRequest, FUSION_CTL_SOCKET_DEFAULT, GetPluginListResponse, PingResponse, Plugin,
+    RestartPluginResponse,
 };
 use graphics::{InternalClient, graphics::Graphics};
 use slotmap::SlotMap;
@@ -102,35 +103,40 @@ impl<B: Backend> App<B> {
         self.globals.lock().unwrap()
     }
 
-    fn get_plugins(&self, stream: &mut UnixStream) -> CompositorResponse {
-        let mut plugins = Vec::new();
-        for id in self.engine.get_plugins() {
-            let plugin = if let Some(env) = self.engine.get_plugin_env_by_id(&id) {
-                Plugin {
-                    id: id.to_string(),
-                    name: env.manifest().name().to_string(),
-                    status: "Running".to_string(),
-                    version: env.manifest().version().to_string(),
-                }
-            } else {
-                let failed = self.engine.get_failed_plugin_by_id(&id).unwrap();
-                Plugin {
-                    id: id.to_string(),
-                    name: failed.manifest().name().to_string(),
-                    status: "Failed".to_string(),
-                    version: failed.manifest().version().to_string(),
-                }
-            };
-
-            plugins.push(plugin);
-        }
-
-        CompositorResponse::Plugins(plugins)
+    fn ping(stream: &mut UnixStream) {
+        let response_data = postcard::to_stdvec_cobs(&PingResponse).unwrap();
+        stream.write_all(&response_data).unwrap();
     }
 
-    fn restart_plugin(&mut self, plugin_id: &str) -> CompositorResponse {
-        self.engine.restart_plugin(plugin_id);
-        CompositorResponse::Ok
+    fn get_plugin_list(&self, stream: &mut UnixStream) {
+        let mut plugins = Vec::new();
+        for plugin_id in self.engine.get_plugin_list() {
+            let plugin = self.engine.get_plugin_env_by_id(&plugin_id).unwrap();
+            plugins.push(Plugin {
+                id: plugin_id.to_string(),
+                name: plugin.manifest().name().to_string(),
+                status: plugin.status().to_string(),
+                version: plugin.manifest().version().to_string(),
+            });
+        }
+
+        let response = GetPluginListResponse::Ok(plugins);
+        let response_data = postcard::to_stdvec_cobs(&response).unwrap();
+        stream.write_all(&response_data).unwrap();
+    }
+
+    fn restart_plugin(&mut self, plugin_id: &str, stream: &mut UnixStream) {
+        let response = match self.engine.restart_plugin(plugin_id) {
+            Ok(status) => RestartPluginResponse::Ok,
+            Err(error) => match error {
+                plugin_engine::Error::PluginNotFound(message) => {
+                    RestartPluginResponse::Error(message)
+                }
+            },
+        };
+
+        let response_data = postcard::to_stdvec_cobs(&response).unwrap();
+        stream.write_all(&response_data).unwrap();
     }
 
     pub fn handle_socket(&mut self) {
@@ -146,13 +152,13 @@ impl<B: Backend> App<B> {
                     buf.push(byte[0]);
                 }
 
-                let response =
-                    match postcard::from_bytes_cobs::<CompositorRequest>(&mut buf).unwrap() {
-                        CompositorRequest::GetPlugins => self.get_plugins(&mut stream),
-                        CompositorRequest::Restart { plugin_id } => self.restart_plugin(&plugin_id),
-                    };
-                let response_data = postcard::to_stdvec_cobs(&response).unwrap();
-                stream.write_all(&response_data).unwrap();
+                match postcard::from_bytes_cobs::<CompositorRequest>(&mut buf).unwrap() {
+                    CompositorRequest::Ping(_) => Self::ping(&mut stream),
+                    CompositorRequest::GetPluginList(_) => self.get_plugin_list(&mut stream),
+                    CompositorRequest::RestartPlugin(request) => {
+                        self.restart_plugin(&request.plugin_id, &mut stream);
+                    }
+                }
             }
             Err(error) => {}
         }
