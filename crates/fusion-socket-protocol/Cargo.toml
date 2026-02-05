@@ -5,5 +5,4 @@ edition.workspace = true
 
 [dependencies]
 serde.workspace = true
-postcard.workspace = true
 derive_more.workspace = true

@@ -345,6 +345,7 @@ impl<B: Backend> SeatHandler for App<B> {
 
     fn cursor_image(&mut self, _seat: &Seat<Self>, status: CursorImageStatus) {
         self.input_state.cursor.set_icon(status);
+        //TODO redraw
     }
 }
 
