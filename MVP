@@ -12,8 +12,13 @@
 
 [0.3]
     [Compositor]
+        [WIP] DRM
+        [WIP] Pointer handling
+        [WIP] Keyboard handling
+        [WIP] Cursor themes
+        Tests
+        Benchmarks
         Trap handling
-        DRM
         Hot swap (save state)
         Hot reload (save state)
         Logs
