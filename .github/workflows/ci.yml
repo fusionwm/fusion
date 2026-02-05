@@ -43,6 +43,7 @@ jobs:
             libseat-dev \
             libpixman-1-dev \
             pkg-config \
+            libdisplay-info-dev \
             mold
         
       - name: Install Rust
