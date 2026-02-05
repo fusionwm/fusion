@@ -9,6 +9,8 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use ::drm::control::crtc;
+use calloop::LoopHandle;
 use fusion_socket_protocol::{
     CompositorRequest, ExitResponse, FUSION_CTL_SOCKET_DEFAULT, GetPluginListResponse,
     PingResponse, Plugin, RestartPluginResponse,
@@ -16,28 +18,38 @@ use fusion_socket_protocol::{
 use graphics::{InternalClient, graphics::Graphics};
 use slotmap::SlotMap;
 use smithay::{
-    backend::renderer::{element::RenderElement, utils::on_commit_buffer_handler},
-    delegate_compositor, delegate_data_device, delegate_output, delegate_seat, delegate_shm,
-    delegate_xdg_shell,
+    backend::{
+        drm::{self, DrmDeviceFd, DrmNode},
+        renderer::{element::RenderElement, utils::on_commit_buffer_handler},
+        session::libseat::LibSeatSession,
+    },
+    delegate_compositor, delegate_data_device, delegate_dmabuf, delegate_output, delegate_seat,
+    delegate_shm, delegate_xdg_shell,
     desktop::{
         PopupKind, PopupManager, Space, Window, find_popup_root_surface, get_popup_toplevel_coords,
     },
     input::{
         Seat, SeatHandler, SeatState,
-        keyboard::XkbConfig,
+        keyboard::{KeyboardHandle, XkbConfig},
         pointer::{Focus, GrabStartData, PointerHandle},
     },
+    output::Output,
     reexports::{
-        calloop::LoopSignal, wayland_protocols::xdg::shell::server::xdg_toplevel,
+        calloop::LoopSignal,
+        wayland_protocols::{
+            wp::linux_dmabuf::zv1::server::zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1,
+            xdg::shell::server::xdg_toplevel,
+        },
         x11rb::protocol::xproto::RESIZE_REQUEST_EVENT,
     },
-    utils::{Rectangle, Serial},
+    utils::{Clock, Logical, Monotonic, Physical, Point, Rectangle, Serial},
     wayland::{
         buffer::BufferHandler,
         compositor::{
             CompositorClientState, CompositorHandler, CompositorState, get_parent,
             is_sync_subsurface, with_states,
         },
+        dmabuf::DmabufHandler,
         input_method::InputMethodHandler,
         output::{OutputHandler, OutputManagerState},
         selection::{
@@ -53,6 +65,7 @@ use smithay::{
         shm::{ShmHandler, ShmState},
     },
 };
+use smithay_drm_extras::drm_scanner;
 use wayland_server::{
     Client, DisplayHandle, Resource,
     backend::ObjectId,
@@ -68,7 +81,9 @@ use crate::compositor::{
         general::{Compositor, GeneralCapabilityProvider, fusion::compositor::types::WindowId},
     },
     backend::Backend,
+    data,
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
+    udev::UdevOutputState,
 };
 
 use plugin_engine::{
@@ -76,6 +91,14 @@ use plugin_engine::{
 };
 
 pub struct App<B: Backend + 'static> {
+    pub loop_signal: LoopSignal,
+    pub handle: LoopHandle<'static, data::Data<B>>,
+    pub backend: B,
+    pub display: DisplayHandle,
+
+    pub socket: UnixListener,
+    pub engine: PluginEngine<CompositorContext>,
+
     pub compositor_state: CompositorState,
     pub data_device_state: DataDeviceState,
     pub seat_state: SeatState<Self>,
@@ -86,16 +109,15 @@ pub struct App<B: Backend + 'static> {
 
     pub popups: PopupManager,
 
-    pub loop_signal: LoopSignal,
-
-    pub backend: B,
-
-    pub socket: UnixListener,
-
-    pub engine: PluginEngine<CompositorContext>,
-
     pub globals: Arc<Mutex<CompositorGlobals>>,
     pub mapped_surfaces: HashMap<ObjectId, WindowKey>,
+
+    //Input
+    pub keyboard: KeyboardHandle<Self>,
+
+    pub outputs: Vec<Output>,
+
+    pub cursor_pos: Point<f64, Logical>,
 }
 
 impl<B: Backend> App<B> {
@@ -177,6 +199,7 @@ impl<B: Backend> App<B> {
         dh: &DisplayHandle,
         backend: B,
         loop_signal: LoopSignal,
+        handle: LoopHandle<'static, data::Data<B>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         // Композитор нашего композитора
         let compositor_state = CompositorState::new::<Self>(dh);
@@ -212,7 +235,7 @@ impl<B: Backend> App<B> {
 
         // Добавляем клавиатуру с частоток повтора и задержкой в миллисекундах.
         // Повтор - время повтора, задержка - как должно нужно ждать перез следующим повтором
-        seat.add_keyboard(XkbConfig::default(), 500, 500).unwrap();
+        let keyboard = seat.add_keyboard(XkbConfig::default(), 500, 500).unwrap();
 
         // Добавляем указатель (мышь, тачпад и т.д.)
         let pointer_handle = seat.add_pointer();
@@ -253,13 +276,23 @@ impl<B: Backend> App<B> {
             xdg_shell_state,
             popups,
             loop_signal,
+            handle,
             backend,
 
             engine,
             globals,
             mapped_surfaces: HashMap::new(),
             socket,
+            display: dh.clone(),
+            keyboard,
+            outputs: Vec::new(),
+            cursor_pos: Point::default(),
         })
+    }
+
+    pub fn add_output(&mut self, output: Output) {
+        self.globals().space.map_output(&output, (0, 0));
+        self.outputs.push(output);
     }
 
     fn unconstrain_popup(&self, popup: &PopupSurface) {
@@ -367,6 +400,7 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
+        println!("Toplevel request");
         let id = surface.wl_surface().id();
         let window = Window::new_wayland_window(surface.clone());
 

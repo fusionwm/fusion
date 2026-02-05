@@ -22,10 +22,12 @@ bytemuck.workspace = true
 
 #Compositor
 smithay.workspace = true
+smithay-drm-extras.workspace = true
 wayland-server.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 calloop.workspace = true
+drm.workspace = true
 
 graphics-widgets.workspace = true
 

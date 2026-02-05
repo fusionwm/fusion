@@ -80,10 +80,26 @@ bytes = "1.11.1"
 wgpu = "28.0.0"
 
 # Server
-smithay = "0.7.0"
+smithay = { version = "0.7.0", features = [
+    "backend_drm",
+    "backend_egl",
+    "backend_gbm",
+    "backend_libinput",
+    "backend_session_libseat",
+    "backend_udev",
+    "backend_winit",
+    "desktop",
+    "renderer_gl",
+    "renderer_pixman",
+    "renderer_multi",
+    "use_system_lib",
+    "wayland_frontend",
+] }
+smithay-drm-extras = "0.1.0"
 wayland-server = "0.31.11"
 winit = "0.30.12"
 calloop = { version = "0.14.3", features = ["executor"] }
+drm = "0.14.1"
 
 # Client
 graphics = { path = "crates/graphics" }
