@@ -42,7 +42,7 @@ wl_client = { path = "crates/wl_client" }
 
 ### [Error]
 thiserror = "2.0.18"
-anyhow = "1.0.100"
+anyhow = "1.0.101"
 
 ### [Debug]
 tracing = "0.1.44"
