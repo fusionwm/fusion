@@ -864,8 +864,6 @@ dependencies = [
  "drm",
  "env_logger",
  "fusion-socket-protocol",
- "graphics",
- "graphics-widgets",
  "log",
  "notify",
  "plugin-engine",

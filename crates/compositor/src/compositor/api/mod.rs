@@ -127,8 +127,7 @@ impl HasData for CompositorContext {
 }
 
 fn get_config_dir() -> std::path::PathBuf {
-    let root = dirs::config_dir().unwrap().join("fusion");
-    root
+    dirs::config_dir().unwrap().join("fusion")
 }
 
 impl InnerContext for CompositorContext {

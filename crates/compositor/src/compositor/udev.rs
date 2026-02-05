@@ -3,20 +3,16 @@
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::drm::compositor::FrameFlags;
 use smithay::backend::drm::{DrmEventMetadata, DrmEventTime};
-use smithay::backend::input::{InputEvent, KeyState, KeyboardKeyEvent, Keycode};
 use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface};
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::{Element, Id, RenderElement, RenderElementStates};
 use smithay::backend::renderer::utils::CommitCounter;
 use smithay::backend::renderer::{Frame, ImportAll, Renderer};
 use smithay::desktop::space::space_render_elements;
-use smithay::desktop::{Space, Window};
-use smithay::input::keyboard::keysyms::{KEY_XF86Switch_VT_1, KEY_XF86Switch_VT_12};
-use smithay::input::keyboard::{FilterResult, KeysymHandle, ModifiersState};
 use smithay::output::Mode;
 use smithay::reexports::input::Libinput;
 use smithay::reexports::wayland_protocols::wp::presentation_time::server::wp_presentation_feedback;
-use smithay::utils::{Monotonic, Physical, Rectangle, SERIAL_COUNTER};
+use smithay::utils::{Monotonic, Physical, Rectangle};
 use smithay::wayland::dmabuf::DmabufHandler;
 use smithay::wayland::presentation::Refresh;
 use smithay::{

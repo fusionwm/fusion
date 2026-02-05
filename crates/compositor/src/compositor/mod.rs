@@ -8,20 +8,11 @@ pub mod udev;
 pub mod window;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use calloop::{LoopHandle, LoopSignal};
-use smithay::backend::renderer::damage::OutputDamageTracker;
-use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
-use smithay::backend::renderer::gles::GlesRenderer;
-use smithay::backend::winit::WinitEvent;
-use smithay::desktop::space::render_output;
-use smithay::output::Mode;
 use smithay::reexports::calloop::generic::Generic;
-use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
-use smithay::reexports::calloop::{EventLoop, Interest, PostAction};
+use smithay::reexports::calloop::{Interest, PostAction};
 use smithay::reexports::wayland_server::Display;
-use smithay::utils::{Rectangle, Transform};
 use smithay::wayland::socket::ListeningSocketSource;
 
 use smithay::wayland::compositor::{CompositorClientState, CompositorState};
@@ -30,10 +21,9 @@ use wayland_server::backend::{ClientData, ClientId, DisconnectReason};
 
 use crate::compositor::backend::Backend;
 use crate::compositor::state::App;
-use crate::compositor::window::WinitBackend;
 
 pub fn init_compositor<B: Backend + 'static>(
-    handle: LoopHandle<'static, data::Data<B>>,
+    loop_handle: LoopHandle<'static, data::Data<B>>,
     signal: LoopSignal,
     backend: B,
 ) -> Result<data::Data<B>, Box<dyn std::error::Error>> {
@@ -58,7 +48,7 @@ pub fn init_compositor<B: Backend + 'static>(
     // Цикл событий потребляет источник (сокет), затем замыкание, которые производит событие, метаданные и клиентские данные.
     // Событие в этом примере это UnixStream созданный сокетом,
     // без метаданных и клиентских данных которые были определены когда создали переменную event_loop
-    handle.insert_source(socket, |stream, (), data| {
+    loop_handle.insert_source(socket, |stream, (), data| {
         // Вставляем нового клиента в Display вместе с данными связанными с этим клиентом.
         // Это запустит управление клиентом через UnixStream
         data.display
@@ -71,7 +61,7 @@ pub fn init_compositor<B: Backend + 'static>(
     // который будет использоваться для генерации событий. Этот файловый дескриптор создается из winit ниже.
     // Нам только нужно читать (Interest::READ) файловый дескриптор, а Mode::Level будет следить за событиями
     // каждый раз когда цикл событий выполняет опрос.
-    handle.insert_source(
+    loop_handle.insert_source(
         Generic::new(
             display,
             Interest::READ,
@@ -92,7 +82,7 @@ pub fn init_compositor<B: Backend + 'static>(
     )?;
 
     // Создаем состояние нашего композитора и передаём все глобальные объекты к которым мы будем обращаться
-    let state = App::init(&dh, backend, signal, handle.clone())?;
+    let state = App::init(&dh, backend, signal, loop_handle)?;
 
     // Данные хранящиеся в цикле событий, мы должны получать доступ к дисплею и состоянию композитора.
     let data = data::Data {

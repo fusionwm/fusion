@@ -7,7 +7,6 @@ edition.workspace = true
 fusion-socket-protocol.workspace = true
 plugin-engine.workspace = true
 tracy-client.workspace = true
-graphics.workspace = true
 toml.workspace = true
 thiserror.workspace = true
 serde.workspace = true
@@ -28,8 +27,6 @@ wgpu.workspace = true
 winit.workspace = true
 calloop.workspace = true
 drm.workspace = true
-
-graphics-widgets.workspace = true
 
 wit-bindgen.workspace = true
 wasmtime.workspace = true

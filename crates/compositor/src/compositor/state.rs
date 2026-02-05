@@ -15,7 +15,6 @@ use fusion_socket_protocol::{
     CompositorRequest, ExitResponse, FUSION_CTL_SOCKET_DEFAULT, GetPluginListResponse,
     PingResponse, Plugin, RestartPluginResponse,
 };
-use graphics::{InternalClient, graphics::Graphics};
 use slotmap::SlotMap;
 use smithay::{
     backend::{

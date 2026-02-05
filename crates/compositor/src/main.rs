@@ -3,7 +3,6 @@
 #![allow(clippy::cast_possible_wrap)]
 #![allow(clippy::too_many_lines)]
 mod compositor;
-mod loader;
 
 use crate::compositor::{
     udev::{UdevData, init_udev},
@@ -35,15 +34,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     run_udev()?;
 
-    //let mut event_loop: EventLoop<LoaderLoopData<WinitBackend>> = EventLoop::try_new()?;
-    //let backend = WinitBackend::new().unwrap();
-    //let mut loader_data = init_loader(&event_loop, backend)?;
-
-    //event_loop.run(None, &mut loader_data, |_| {})?;
-
     Ok(())
 }
 
+#[allow(unused)]
 fn run_winit() -> Result<(), Box<dyn std::error::Error>> {
     let mut event_loop: EventLoop<compositor::data::Data<WinitBackend>> = EventLoop::try_new()?;
 
