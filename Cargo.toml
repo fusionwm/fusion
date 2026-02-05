@@ -39,11 +39,11 @@ plugin-engine = { path = "crates/plugin-engine" }
 fusion-socket-protocol = { path = "crates/fusion-socket-protocol" }
 
 ### Other
-wasmtime = { version = "41.0.2", features = ["async"] }
-wasmtime-wasi = { version = "41.0.2" }
+wasmtime = { version = "41.0.3", features = ["async"] }
+wasmtime-wasi = { version = "41.0.3" }
 toml = "0.9.11"
 serde = { version = "1.0.228", features = ["derive"] }
-zip = "7.2.0"
+zip = "7.3.0"
 notify = "8.2.0"
 tokio = { version = "1.49.0", features = ["full", "macros"] }
 dirs = "6.0.0"
