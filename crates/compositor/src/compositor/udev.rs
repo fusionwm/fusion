@@ -4,10 +4,11 @@ use smithay::backend::allocator::Fourcc;
 use smithay::backend::drm::compositor::FrameFlags;
 use smithay::backend::drm::{DrmEventMetadata, DrmEventTime};
 use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface};
+use smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement;
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::{Element, Id, RenderElement, RenderElementStates};
 use smithay::backend::renderer::utils::CommitCounter;
-use smithay::backend::renderer::{Frame, ImportAll, Renderer};
+use smithay::backend::renderer::{Frame, ImportAll, ImportMem, Renderer};
 use smithay::desktop::space::space_render_elements;
 use smithay::output::Mode;
 use smithay::reexports::input::Libinput;
@@ -569,14 +570,12 @@ impl App<UdevData> {
             .map(TestRenderElement::from)
             .collect::<Vec<_>>();
 
-        elements.insert(
-            0,
-            TestRenderElement::Rect(RectElement::new(
-                (self.cursor_pos.x as i32, self.cursor_pos.y as i32),
-                (16, 16),
-                [1.0; 4],
-            )),
-        );
+        let mut cursor = self.input_state.cursor.render_cursor(&mut device.gles);
+        if !cursor.is_empty() {
+            let cursor: TestRenderElement<GlesRenderer, WaylandSurfaceRenderElement<GlesRenderer>> =
+                cursor.remove(0);
+            elements.insert(0, cursor);
+        }
 
         let drm_compositor = &mut surface.compositor;
         match drm_compositor.render_frame(
@@ -777,7 +776,9 @@ impl<R: Renderer> RenderElement<R> for RectElement {
 }
 
 smithay::backend::renderer::element::render_elements! {
-    TestRenderElement<R, E> where R: ImportAll;
+    pub TestRenderElement<R, E> where R: ImportAll + ImportMem;
+    Cursor = MemoryRenderBufferRenderElement<R>,
+    Surface = WaylandSurfaceRenderElement<R>,
     Space = smithay::desktop::space::SpaceRenderElements<R, E>,
     Rect = RectElement,
 }

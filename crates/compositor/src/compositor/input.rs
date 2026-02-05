@@ -22,9 +22,9 @@ impl<B: Backend + 'static> App<B> {
         match input {
             InputEvent::PointerMotion { event } => {
                 let delta = event.delta();
-                self.cursor_pos += delta;
+                self.input_state.cursor.location += delta;
 
-                let location = self.cursor_pos;
+                let location = self.input_state.cursor.location;
                 let under = self.surface_under(location);
 
                 // Ограничиваем, чтобы мышь не ушла за экран (Screen Clipping)
@@ -82,7 +82,7 @@ impl<B: Backend + 'static> App<B> {
                 let button_state = event.state();
 
                 if ButtonState::Pressed == button_state && !pointer.is_grabbed() {
-                    let location = self.cursor_pos;
+                    let location = self.input_state.cursor.location;
 
                     // Ищем окно и ПОВЕРХНОСТЬ под курсором
                     let under = globals.space.element_under(location).map(|(w, l)| {

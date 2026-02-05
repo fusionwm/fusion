@@ -78,7 +78,7 @@ bytes = "1.11.1"
 
 # General
 wgpu = "28.0.0"
-
+xcursor = "0.3.10"
 # Server
 smithay = { version = "0.7.0", features = [
     "backend_drm",

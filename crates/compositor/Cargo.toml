@@ -27,6 +27,7 @@ wgpu.workspace = true
 winit.workspace = true
 calloop.workspace = true
 drm.workspace = true
+xcursor.workspace = true
 
 wit-bindgen.workspace = true
 wasmtime.workspace = true

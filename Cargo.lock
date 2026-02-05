@@ -882,6 +882,7 @@ dependencies = [
  "wgpu",
  "winit",
  "wit-bindgen 0.52.0",
+ "xcursor",
  "zip",
 ]
 

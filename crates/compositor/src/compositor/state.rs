@@ -30,7 +30,7 @@ use smithay::{
     input::{
         Seat, SeatHandler, SeatState,
         keyboard::{KeyboardHandle, XkbConfig},
-        pointer::{Focus, GrabStartData, PointerHandle},
+        pointer::{CursorImageStatus, Focus, GrabStartData, PointerHandle},
     },
     output::Output,
     reexports::{
@@ -80,6 +80,7 @@ use crate::compositor::{
         general::{Compositor, GeneralCapabilityProvider, fusion::compositor::types::WindowId},
     },
     backend::Backend,
+    cursor::InputState,
     data,
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
     udev::UdevOutputState,
@@ -112,11 +113,9 @@ pub struct App<B: Backend + 'static> {
     pub mapped_surfaces: HashMap<ObjectId, WindowKey>,
 
     //Input
-    pub keyboard: KeyboardHandle<Self>,
-
     pub outputs: Vec<Output>,
 
-    pub cursor_pos: Point<f64, Logical>,
+    pub input_state: InputState<B>,
 }
 
 impl<B: Backend> App<B> {
@@ -232,10 +231,6 @@ impl<B: Backend> App<B> {
         // Создаём новый Seat из состояния Seat и передаём ему имя.
         let mut seat: Seat<Self> = seat_state.new_wl_seat(dh, "fusion_wm");
 
-        // Добавляем клавиатуру с частоток повтора и задержкой в миллисекундах.
-        // Повтор - время повтора, задержка - как должно нужно ждать перез следующим повтором
-        let keyboard = seat.add_keyboard(XkbConfig::default(), 500, 500).unwrap();
-
         // Добавляем указатель (мышь, тачпад и т.д.)
         let pointer_handle = seat.add_pointer();
 
@@ -264,6 +259,8 @@ impl<B: Backend> App<B> {
         let socket = UnixListener::bind(FUSION_CTL_SOCKET_DEFAULT)?;
         socket.set_nonblocking(true)?;
 
+        let input_state = InputState::new(&mut seat);
+
         Ok(Self {
             compositor_state,
             data_device_state,
@@ -283,9 +280,9 @@ impl<B: Backend> App<B> {
             mapped_surfaces: HashMap::new(),
             socket,
             display: dh.clone(),
-            keyboard,
             outputs: Vec::new(),
-            cursor_pos: Point::default(),
+
+            input_state,
         })
     }
 
@@ -334,8 +331,8 @@ impl<B: Backend> App<B> {
     }
 }
 
-delegate_seat!(@<B: Backend + 'static> App<B>);
-impl<B: Backend + 'static> SeatHandler for App<B> {
+delegate_seat!(@<B: Backend> App<B>);
+impl<B: Backend> SeatHandler for App<B> {
     type KeyboardFocus = WlSurface;
 
     type PointerFocus = WlSurface;
@@ -344,6 +341,10 @@ impl<B: Backend + 'static> SeatHandler for App<B> {
 
     fn seat_state(&mut self) -> &mut smithay::input::SeatState<Self> {
         &mut self.seat_state
+    }
+
+    fn cursor_image(&mut self, _seat: &Seat<Self>, status: CursorImageStatus) {
+        self.input_state.cursor.set_icon(status);
     }
 }
 
