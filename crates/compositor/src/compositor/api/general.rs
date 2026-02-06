@@ -82,7 +82,6 @@ impl wm_imports::Host for CompositorContext {
         surface.with_pending_state(|state| {
             state.size = Some((width as i32, height as i32).into());
         });
-        surface.send_configure();
     }
 
     fn set_window_pos(&mut self, window: WindowId, x: u32, y: u32) {
@@ -120,7 +119,7 @@ impl wm_imports::Host for CompositorContext {
             .mapped_windows
             .get_mut(WindowKey(KeyData::from_ffi(window.inner)))
         {
-            window.toplevel().unwrap().send_configure();
+            window.toplevel().unwrap().send_pending_configure();
         }
     }
 }
