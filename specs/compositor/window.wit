@@ -21,6 +21,7 @@ interface wm-exports {
     use types.{window-id};
 
     new-toplevel: func(window: window-id);
+    on-commit: func(window: window-id);
     toplevel-destroyed: func(window: window-id);
     rearrange-windows: func();
 }
