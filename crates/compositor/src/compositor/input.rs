@@ -7,7 +7,7 @@ use smithay::{
     desktop::WindowSurfaceType,
     input::{
         keyboard::FilterResult,
-        pointer::{AxisFrame, ButtonEvent, MotionEvent},
+        pointer::{AxisFrame, ButtonEvent, MotionEvent, RelativeMotionEvent},
     },
     utils::{Logical, Point, SERIAL_COUNTER},
 };
@@ -31,6 +31,17 @@ impl<B: Backend + 'static> App<B> {
 
                 let pointer = self.seat.get_pointer().unwrap();
                 let serial = SERIAL_COUNTER.next_serial();
+
+                pointer.relative_motion(
+                    self,
+                    under.clone(),
+                    &RelativeMotionEvent {
+                        delta: event.delta(),
+                        delta_unaccel: event.delta_unaccel(),
+                        utime: event.time(),
+                    },
+                );
+
                 pointer.motion(
                     self,
                     under,
@@ -218,14 +229,30 @@ impl<B: Backend + 'static> App<B> {
     }
 
     //TODO mutli monitor setup
-    pub fn clamp_pointer_location(&self, raw_location: Point<f64, Logical>) -> Point<f64, Logical> {
-        let pointer_location = raw_location.to_i32_ceil::<i32>();
+    pub fn clamp_pointer_location(
+        &self,
+        mut raw_location: Point<f64, Logical>,
+    ) -> Point<f64, Logical> {
         let output = self.output_state.outputs.keys().next().unwrap();
-        let output_location = output.current_location();
-        let output_size = output.current_mode().unwrap().size;
+        let output_location = output.current_location().to_f64();
+        let output_size = output.current_mode().unwrap().size.to_f64();
 
-        let x = pointer_location.x.clamp(output_location.x, output_size.w);
-        let y = pointer_location.y.clamp(output_location.y, output_size.h);
-        Point::new(x, y).to_f64()
+        if raw_location.x < output_location.x {
+            raw_location.x = output_location.x;
+        }
+
+        if raw_location.y < output_location.y {
+            raw_location.y = output_location.y;
+        }
+
+        if raw_location.x > output_size.w {
+            raw_location.x = output_size.w;
+        }
+
+        if raw_location.y > output_size.h {
+            raw_location.y = output_size.h;
+        }
+
+        raw_location
     }
 }

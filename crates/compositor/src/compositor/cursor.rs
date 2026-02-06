@@ -115,12 +115,23 @@ impl<B: Backend> Cursor<B> {
                 );
 
                 let hotspot = Point::<i32, Logical>::new(image.xhot as i32, image.yhot as i32);
-                let location =
-                    (location - hotspot.to_f64()).to_physical_precise_round(scale.integer_scale());
+                //let location = (location - hotspot.to_f64()).to_physical(scale.fractional_scale());
+
+                // 1. Сначала переводим логическую позицию в физическую f64
+                let location_physical = location.to_f64().to_physical(scale.fractional_scale());
+
+                // 2. Переводим hotspot в физический f64
+                let hotspot_physical = hotspot.to_f64().to_physical(scale.fractional_scale());
+
+                // 3. Вычитаем в физических координатах
+                let final_pos_f64 = location_physical - hotspot_physical;
+
+                // 4. Округляем РЕЗУЛЬТАТ до целых пикселей (важно: .to_i32_round()!)
+                let final_pos = final_pos_f64.to_i32_round();
 
                 let texture = MemoryRenderBufferRenderElement::from_buffer(
                     renderer,
-                    location,
+                    final_pos,
                     &buffer,
                     None,
                     None,

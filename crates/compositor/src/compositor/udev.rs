@@ -589,6 +589,17 @@ impl App<UdevData> {
             elements.insert(0, cursor);
         }
 
+        let debug_cursor = {
+            let location = self.input_state.cursor.location;
+            RectElement::new(
+                (location.x as i32, location.y as i32),
+                (6, 16),
+                [0.0, 0.0, 1.0, 1.0],
+            )
+        };
+
+        elements.insert(0, TestRenderElement::from(debug_cursor));
+
         let drm_compositor = &mut surface.compositor;
         match drm_compositor.render_frame(
             &mut device.gles,
