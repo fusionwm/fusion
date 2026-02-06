@@ -39,6 +39,7 @@ struct BuildEnvironment {
 
 impl BuildEnvironment {
     fn new(root: &Path, output: Option<String>, is_release: bool) -> anyhow::Result<Self> {
+        let metadata = MetadataCommand::new().exec()?;
         let manifest = Manifest::from_path("Cargo.toml")?;
         let package = manifest
             .package
@@ -47,16 +48,15 @@ impl BuildEnvironment {
         let package_name = &package.name;
         let plugin_name = {
             let package_version = match package.version() {
-                MaybeInherited::Inherited { workspace: _ } => todo!(),
-                MaybeInherited::Local(version) => version,
+                MaybeInherited::Inherited { workspace: _ } => {
+                    metadata.root_package().unwrap().version.to_string()
+                }
+                MaybeInherited::Local(version) => version.to_string(),
             };
             format!("{package_name}_{package_version}")
         };
 
-        let target = {
-            let metadata = MetadataCommand::new().exec()?;
-            metadata.target_directory.into_std_path_buf()
-        };
+        let target = { metadata.target_directory.into_std_path_buf() };
 
         let mode = if is_release { "release" } else { "debug" };
 
