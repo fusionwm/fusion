@@ -55,6 +55,7 @@ use smithay_drm_extras::{
     drm_scanner::{self, DrmScanEvent, DrmScanner},
 };
 
+use crate::compositor::output::RenderState;
 use crate::compositor::{backend::Backend, state::App};
 
 type GbmDrmCompositor = DrmCompositor<
@@ -448,10 +449,8 @@ impl App<UdevData> {
         let prev = device.surfaces.insert(crtc, surface);
         assert!(prev.is_none(), "crtc must not have already existed");
 
-        self.add_output(output);
-
-        //mayland.add_output(output.clone());
-        //mayland.queue_redraw(output);
+        self.map_output(&output);
+        self.output_state.add_output(output);
     }
 
     fn connector_disconnected(&mut self, connector: &connector::Info, crtc: crtc::Handle) {
@@ -463,7 +462,7 @@ impl App<UdevData> {
             return;
         }
 
-        todo!();
+        todo!()
 
         //let output = mayland
         //    .workspaces
@@ -515,30 +514,39 @@ impl App<UdevData> {
             }
         }
 
-        //let output = mayland
-        //    .workspaces
-        //    .udev_output(device.id, crtc)
-        //    .unwrap()
-        //    .clone();
+        let output = self
+            .output_state
+            .udev_output(crtc, device.id)
+            .unwrap()
+            .clone();
 
-        //let output_state = mayland.output_state.get_mut(&output).unwrap();
-        //output_state.queued.on_vblank();
-
-        //self.get_out
+        self.output_state.queue_render(&output);
 
         //mayland.send_frame_callbacks(&output);
     }
 
     pub fn render_all(&mut self) {
         let start_time = std::time::Instant::now();
-        let outputs = self.outputs.clone();
-        for output in outputs {
-            self.render(&output);
+        let space = unsafe {
+            let ptr = &raw const self.globals().space;
+            &*ptr
+        };
 
-            let space = &mut self.globals.lock().unwrap().space;
+        let output_state = unsafe {
+            let ptr = &raw const self.output_state;
+            &*ptr
+        };
+
+        for (output, state) in &output_state.outputs {
+            if *state != RenderState::Queued {
+                continue;
+            }
+
+            self.render(output);
+
             space.elements().for_each(|window| {
                 window.send_frame(
-                    &output,
+                    output,
                     start_time.elapsed(),
                     Some(Duration::ZERO),
                     |_, _| Some(output.clone()),
@@ -570,7 +578,11 @@ impl App<UdevData> {
             .map(TestRenderElement::from)
             .collect::<Vec<_>>();
 
-        let mut cursor = self.input_state.cursor.render_cursor(&mut device.gles);
+        let output_scale = output.current_scale();
+        let mut cursor = self
+            .input_state
+            .cursor
+            .render_cursor(&mut device.gles, output_scale);
         if !cursor.is_empty() {
             let cursor: TestRenderElement<GlesRenderer, WaylandSurfaceRenderElement<GlesRenderer>> =
                 cursor.remove(0);
@@ -595,8 +607,7 @@ impl App<UdevData> {
 
                 match drm_compositor.queue_frame(output_presentation_feedback) {
                     Ok(()) => {
-                        //let output_state = self.output_state.get_mut(output).unwrap();
-                        //output_state.queued.waiting_for_vblank();
+                        self.output_state.wait_render_request(output);
                     }
                     Err(err) => log::error!("error queueing frame {err:?}"),
                 }
@@ -606,8 +617,6 @@ impl App<UdevData> {
                 log::error!("error rendering frame {err:?}");
             }
         }
-
-        //let _ = std::mem::replace(&mut self.globals().space, space);
     }
 
     fn presentation_feedback(

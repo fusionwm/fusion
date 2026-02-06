@@ -860,6 +860,7 @@ dependencies = [
  "calloop 0.14.3",
  "cc",
  "chrono",
+ "derive_more",
  "dirs",
  "drm",
  "env_logger",

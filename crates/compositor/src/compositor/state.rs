@@ -83,6 +83,7 @@ use crate::compositor::{
     cursor::InputState,
     data,
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab, resize_grab},
+    output::OutputState,
     udev::UdevOutputState,
 };
 
@@ -110,12 +111,10 @@ pub struct App<B: Backend + 'static> {
     pub popups: PopupManager,
 
     pub globals: Arc<Mutex<CompositorGlobals>>,
-    pub mapped_surfaces: HashMap<ObjectId, WindowKey>,
 
     //Input
-    pub outputs: Vec<Output>,
-
     pub input_state: InputState<B>,
+    pub output_state: OutputState,
 }
 
 impl<B: Backend> App<B> {
@@ -277,18 +276,16 @@ impl<B: Backend> App<B> {
 
             engine,
             globals,
-            mapped_surfaces: HashMap::new(),
             socket,
             display: dh.clone(),
-            outputs: Vec::new(),
 
             input_state,
+            output_state: OutputState::default(),
         })
     }
 
-    pub fn add_output(&mut self, output: Output) {
-        self.globals().space.map_output(&output, (0, 0));
-        self.outputs.push(output);
+    pub fn map_output(&mut self, output: &Output) {
+        self.globals().space.map_output(output, (0, 0));
     }
 
     fn unconstrain_popup(&self, popup: &PopupSurface) {
@@ -316,18 +313,6 @@ impl<B: Backend> App<B> {
         popup.with_pending_state(|state| {
             state.geometry = state.positioner.get_unconstrained_geometry(target);
         });
-    }
-
-    fn rearrange_windows(&mut self) {
-        let mut bindings = self
-            .engine
-            .get_single_write_bindings::<Compositor>("compositor.window");
-        let mut store = bindings.store();
-
-        bindings
-            .fusion_compositor_wm_exports()
-            .call_rearrange_windows(&mut store)
-            .unwrap();
     }
 }
 
@@ -375,7 +360,7 @@ impl<B: Backend + 'static> CompositorHandler for App<B> {
             }
         }
 
-        handle_commit(&mut self.popups, space, surface);
+        handle_commit(&mut self.engine, &mut self.popups, space, surface);
         resize_grab::handle_commit(space, surface);
     }
 }
@@ -402,18 +387,15 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         println!("Toplevel request");
-        let id = surface.wl_surface().id();
         let window = Window::new_wayland_window(surface.clone());
-
         let window_id = {
             let mut globals = self.globals.lock().unwrap();
             let space = &mut globals.space;
 
             space.map_element(window.clone(), (0, 0), false);
-            globals.mapped_windows.insert(window)
+            globals.mapped_windows.insert(window.clone())
         };
-
-        self.mapped_surfaces.insert(id, window_id);
+        window.user_data().insert_if_missing(|| window_id);
 
         let mut bindings = self
             .engine
@@ -422,17 +404,25 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
         let now = std::time::Instant::now();
         bindings
             .fusion_compositor_wm_exports()
-            .call_new_toplevel(&mut store, window_id.into());
+            .call_new_toplevel(&mut store, window_id.into())
+            .unwrap();
         let elapsed = now.elapsed();
         log::warn!("New toplevel creation took {elapsed:?}");
     }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
-        let surface_id = surface.wl_surface().id();
-
         let window_id = {
             let mut globals = self.globals.lock().unwrap();
-            let window_id = self.mapped_surfaces.remove(&surface_id).unwrap();
+            let window = {
+                let space = &mut globals.space;
+                space
+                    .elements()
+                    .find(|w| w.toplevel().unwrap().wl_surface() == surface.wl_surface())
+                    .cloned()
+                    .unwrap()
+            };
+
+            let window_id = *window.user_data().get::<WindowKey>().unwrap();
             let window = globals.mapped_windows.remove(window_id).unwrap();
             let space = &mut globals.space;
             space.unmap_elem(&window);
@@ -559,13 +549,29 @@ impl<B: Backend + 'static> DataDeviceHandler for App<B> {
     }
 }
 
-pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: &WlSurface) {
+pub fn handle_commit(
+    engine: &mut PluginEngine<CompositorContext>,
+    popups: &mut PopupManager,
+    space: &Space<Window>,
+    surface: &WlSurface,
+) {
     // Handle toplevel commits.
     if let Some(window) = space
         .elements()
         .find(|w| w.toplevel().unwrap().wl_surface() == surface)
         .cloned()
     {
+        println!("handle commit");
+        let window_id = *window.user_data().get::<WindowKey>().unwrap();
+        let mut bindings = engine.get_single_write_bindings::<Compositor>("compositor.window");
+        let mut store = bindings.store();
+        println!("call");
+        bindings
+            .fusion_compositor_wm_exports()
+            .call_on_commit(&mut store, window_id.into())
+            .unwrap();
+        println!("end");
+
         let initial_configure_sent = with_states(surface, |states| {
             states
                 .data_map

@@ -6,6 +6,7 @@ use smithay::backend::renderer::element::surface::{
 };
 use smithay::backend::renderer::{ImportDmaWl, ImportEgl, ImportMem, ImportMemWl};
 use smithay::input::pointer::CursorImageSurfaceData;
+use smithay::output::Scale;
 use smithay::utils::Transform;
 use smithay::wayland::compositor::with_states;
 use smithay::{
@@ -37,7 +38,7 @@ pub struct XCursor {
 }
 
 pub struct Cursor<B: Backend> {
-    pub pointer: PointerHandle<App<B>>,
+    pointer: PointerHandle<App<B>>,
     pub location: Point<f64, Logical>,
     status: CursorImageStatus,
     theme: CursorTheme,
@@ -45,17 +46,17 @@ pub struct Cursor<B: Backend> {
 }
 
 impl<B: Backend> Cursor<B> {
+    pub fn get_pointer(&self) -> PointerHandle<App<B>> {
+        self.pointer.clone()
+    }
+
     pub fn set_icon(&mut self, status: CursorImageStatus) {
         self.status = status;
-        match &self.status {
-            CursorImageStatus::Hidden => {}
-            CursorImageStatus::Surface(_) => {}
-            CursorImageStatus::Named(icon) => {
-                let icon_path = self.theme.load_icon(icon.name()).unwrap();
-                let bytes = std::fs::read(icon_path).unwrap();
-                let image = parse_xcursor(&bytes).unwrap();
-                self.cache.insert(*icon, XCursor { inner: image });
-            }
+        if let CursorImageStatus::Named(icon) = &self.status {
+            let icon_path = self.theme.load_icon(icon.name()).unwrap();
+            let bytes = std::fs::read(icon_path).unwrap();
+            let image = parse_xcursor(&bytes).unwrap();
+            self.cache.insert(*icon, XCursor { inner: image });
         }
     }
 
@@ -65,11 +66,13 @@ impl<B: Backend> Cursor<B> {
     >(
         &self,
         renderer: &mut R,
+        scale: Scale,
     ) -> Vec<TestRenderElement<R, E>>
     where
         <R as smithay::backend::renderer::RendererSuper>::TextureId: Send + Clone + 'static,
     {
-        let location = self.location.to_physical(1.0);
+        let location = self.location;
+        //let location = self.location.to_f64().to_physical(1.0);
         match &self.status {
             CursorImageStatus::Hidden => vec![],
             CursorImageStatus::Surface(surface) => {
@@ -83,13 +86,14 @@ impl<B: Backend> Cursor<B> {
                         .hotspot
                 });
 
-                let location = location.to_i32_round() - hotspot.to_physical(1);
+                let scale = scale.fractional_scale();
+                let location = (location - hotspot.to_f64()).to_physical_precise_round(scale);
 
                 render_elements_from_surface_tree::<R, WaylandSurfaceRenderElement<R>>(
                     renderer,
                     surface,
                     location,
-                    1.,
+                    scale,
                     1.,
                     Kind::Cursor,
                 )
@@ -105,10 +109,14 @@ impl<B: Backend> Cursor<B> {
                     &image.pixels_rgba,
                     Fourcc::Argb8888,
                     (image.width as i32, image.height as i32),
-                    1,
+                    scale.integer_scale(),
                     Transform::Normal,
                     None,
                 );
+
+                let hotspot = Point::<i32, Logical>::new(image.xhot as i32, image.yhot as i32);
+                let location =
+                    (location - hotspot.to_f64()).to_physical_precise_round(scale.integer_scale());
 
                 let texture = MemoryRenderBufferRenderElement::from_buffer(
                     renderer,
@@ -136,7 +144,7 @@ impl<B: Backend> InputState<B> {
     pub fn new(seat: &mut Seat<App<B>>) -> Self {
         // Добавляем клавиатуру с частоток повтора и задержкой в миллисекундах.
         // Повтор - время повтора, задержка - как должно нужно ждать перез следующим повтором
-        let keyboard = seat.add_keyboard(XkbConfig::default(), 500, 500).unwrap();
+        let keyboard = seat.add_keyboard(XkbConfig::default(), 200, 25).unwrap();
         let pointer = seat.add_pointer();
 
         let theme = CursorTheme::load("Adwaita");

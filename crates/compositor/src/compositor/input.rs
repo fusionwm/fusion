@@ -1,12 +1,13 @@
 use smithay::{
     backend::input::{
-        AbsolutePositionEvent, ButtonState, Event, InputBackend, InputEvent, KeyState,
-        KeyboardKeyEvent, Keycode, PointerButtonEvent, PointerMotionEvent,
+        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent,
+        KeyState, KeyboardKeyEvent, Keycode, PointerAxisEvent, PointerButtonEvent,
+        PointerMotionEvent,
     },
     desktop::WindowSurfaceType,
     input::{
         keyboard::FilterResult,
-        pointer::{ButtonEvent, MotionEvent},
+        pointer::{AxisFrame, ButtonEvent, MotionEvent},
     },
     utils::{Logical, Point, SERIAL_COUNTER},
 };
@@ -21,17 +22,12 @@ impl<B: Backend + 'static> App<B> {
     {
         match input {
             InputEvent::PointerMotion { event } => {
-                let delta = event.delta();
-                self.input_state.cursor.location += delta;
+                self.input_state.cursor.location += event.delta();
+                self.input_state.cursor.location =
+                    self.clamp_pointer_location(self.input_state.cursor.location);
 
                 let location = self.input_state.cursor.location;
                 let under = self.surface_under(location);
-
-                // Ограничиваем, чтобы мышь не ушла за экран (Screen Clipping)
-                //let size = output.current_mode().size;
-                //state.cursor_pos.x = state.cursor_pos.x.clamp(0.0, size.w as f64);
-                //state.cursor_pos.y = state.cursor_pos.y.clamp(0.0, size.h as f64);
-                //println!("Cursor pos: {:#?}", pointer.current_location());
 
                 let pointer = self.seat.get_pointer().unwrap();
                 let serial = SERIAL_COUNTER.next_serial();
@@ -44,6 +40,8 @@ impl<B: Backend + 'static> App<B> {
                         time: event.time_msec(),
                     },
                 );
+
+                pointer.frame(self);
             }
             InputEvent::PointerMotionAbsolute { event } => {
                 let output_geo = {
@@ -135,7 +133,52 @@ impl<B: Backend + 'static> App<B> {
                 );
                 pointer.frame(self);
             }
-            InputEvent::PointerAxis { event } => {}
+            InputEvent::PointerAxis { event } => {
+                let horizontal_amount_v120 = event.amount_v120(Axis::Horizontal);
+                let horizontal_amount = event
+                    .amount(Axis::Horizontal)
+                    .or_else(|| horizontal_amount_v120.map(|amt| amt * 15. / 120.))
+                    .unwrap_or(0.0);
+                let vertical_amount_v120 = event.amount_v120(Axis::Vertical);
+                let vertical_amount = event
+                    .amount(Axis::Vertical)
+                    .or_else(|| vertical_amount_v120.map(|amt| amt * 15. / 120.))
+                    .unwrap_or(0.0);
+
+                let mut frame = AxisFrame::new(event.time_msec()).source(event.source());
+                if horizontal_amount != 0.0 {
+                    frame = frame.relative_direction(
+                        Axis::Horizontal,
+                        event.relative_direction(Axis::Horizontal),
+                    );
+                    frame = frame.value(Axis::Horizontal, horizontal_amount);
+                    if let Some(amount_v120) = horizontal_amount_v120 {
+                        frame = frame.v120(Axis::Horizontal, amount_v120 as i32);
+                    }
+                }
+                if vertical_amount != 0.0 {
+                    frame = frame.relative_direction(
+                        Axis::Vertical,
+                        event.relative_direction(Axis::Vertical),
+                    );
+                    frame = frame.value(Axis::Vertical, vertical_amount);
+                    if let Some(amount_v120) = vertical_amount_v120 {
+                        frame = frame.v120(Axis::Vertical, amount_v120 as i32);
+                    }
+                }
+                if event.source() == AxisSource::Finger {
+                    if event.amount(Axis::Horizontal) == Some(0.0) {
+                        frame = frame.stop(Axis::Horizontal);
+                    }
+                    if event.amount(Axis::Vertical) == Some(0.0) {
+                        frame = frame.stop(Axis::Vertical);
+                    }
+                }
+
+                let pointer = self.input_state.cursor.get_pointer();
+                pointer.axis(self, frame);
+                pointer.frame(self);
+            }
             InputEvent::Keyboard { event } => {
                 let keyboard = self.seat.get_keyboard().unwrap();
                 let serial = SERIAL_COUNTER.next_serial();
@@ -172,5 +215,17 @@ impl<B: Backend + 'static> App<B> {
                     .surface_under(pos - location.to_f64(), WindowSurfaceType::ALL)
                     .map(|(s, p)| (s, (p + location).to_f64()))
             })
+    }
+
+    //TODO mutli monitor setup
+    pub fn clamp_pointer_location(&self, raw_location: Point<f64, Logical>) -> Point<f64, Logical> {
+        let pointer_location = raw_location.to_i32_ceil::<i32>();
+        let output = self.output_state.outputs.keys().next().unwrap();
+        let output_location = output.current_location();
+        let output_size = output.current_mode().unwrap().size;
+
+        let x = pointer_location.x.clamp(output_location.x, output_size.w);
+        let y = pointer_location.y.clamp(output_location.y, output_size.h);
+        Point::new(x, y).to_f64()
     }
 }
