@@ -505,6 +505,10 @@ impl App<UdevData> {
     }
 
     pub fn render_all(&mut self) {
+        if self.sleep {
+            return;
+        }
+
         let now = self.clock.now();
         let space = unsafe {
             let ptr = &raw const self.globals().space;
