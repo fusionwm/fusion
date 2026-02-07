@@ -23,7 +23,7 @@ use smithay::{
         session::libseat::LibSeatSession,
     },
     delegate_compositor, delegate_data_device, delegate_dmabuf, delegate_output, delegate_seat,
-    delegate_shm, delegate_xdg_shell,
+    delegate_shm, delegate_xdg_decoration, delegate_xdg_shell,
     desktop::{
         PopupKind, PopupManager, Space, Window, find_popup_root_surface, get_popup_toplevel_coords,
     },
@@ -60,6 +60,7 @@ use smithay::{
         shell::xdg::{
             PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
             XdgToplevelSurfaceData,
+            decoration::{XdgDecorationHandler, XdgDecorationState},
         },
         shm::{ShmHandler, ShmState},
     },
@@ -107,6 +108,7 @@ pub struct App<B: Backend + 'static> {
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub xdg_shell_state: XdgShellState,
+    pub xdg_decoration_state: XdgDecorationState,
 
     pub popups: PopupManager,
 
@@ -261,6 +263,7 @@ impl<B: Backend> App<B> {
         socket.set_nonblocking(true)?;
 
         let input_state = InputState::new(&mut seat);
+        let xdg_decoration_state = XdgDecorationState::new::<Self>(dh);
 
         Ok(Self {
             compositor_state,
@@ -284,6 +287,7 @@ impl<B: Backend> App<B> {
             input_state,
             output_state: OutputState::default(),
             clock: Clock::new(),
+            xdg_decoration_state,
         })
     }
 
@@ -624,4 +628,32 @@ fn check_grab<B: Backend + 'static>(
     }
 
     Some(start_data)
+}
+
+use smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode as DecorationMode;
+
+//TODO plugin configuration
+delegate_xdg_decoration!(@<B: Backend + 'static> App<B>);
+impl<B: Backend> XdgDecorationHandler for App<B> {
+    fn new_decoration(&mut self, toplevel: ToplevelSurface) {
+        //TODO: custom decorations;
+        toplevel.with_pending_state(|state| {
+            state.decoration_mode = Some(DecorationMode::ClientSide);
+        });
+        toplevel.send_configure();
+    }
+
+    fn request_mode(&mut self, toplevel: ToplevelSurface, mode: DecorationMode) {
+        //TODO: custom decorations;
+        toplevel
+            .with_pending_state(|state| state.decoration_mode = Some(DecorationMode::ClientSide));
+        toplevel.send_configure();
+    }
+
+    fn unset_mode(&mut self, toplevel: ToplevelSurface) {
+        toplevel.with_pending_state(|state| {
+            state.decoration_mode = None;
+        });
+        toplevel.send_configure();
+    }
 }
