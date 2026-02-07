@@ -526,7 +526,7 @@ impl App<UdevData> {
     }
 
     pub fn render_all(&mut self) {
-        let start_time = std::time::Instant::now();
+        let now = self.clock.now();
         let space = unsafe {
             let ptr = &raw const self.globals().space;
             &*ptr
@@ -537,21 +537,25 @@ impl App<UdevData> {
             &*ptr
         };
 
+        let mut is_any_rendered = false;
+
         for (output, state) in &output_state.outputs {
             if *state != RenderState::Queued {
                 continue;
             }
 
             self.render(output);
+            is_any_rendered = true;
 
             space.elements().for_each(|window| {
-                window.send_frame(
-                    output,
-                    start_time.elapsed(),
-                    Some(Duration::ZERO),
-                    |_, _| Some(output.clone()),
-                );
+                window.send_frame(output, now, Some(Duration::ZERO), |_, _| {
+                    Some(output.clone())
+                });
             });
+        }
+
+        if is_any_rendered {
+            self.display.flush_clients().unwrap();
         }
     }
 

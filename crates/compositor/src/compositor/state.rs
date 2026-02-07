@@ -112,6 +112,8 @@ pub struct App<B: Backend + 'static> {
 
     pub globals: Arc<Mutex<CompositorGlobals>>,
 
+    pub clock: Clock<Monotonic>,
+
     //Input
     pub input_state: InputState<B>,
     pub output_state: OutputState,
@@ -281,6 +283,7 @@ impl<B: Backend> App<B> {
 
             input_state,
             output_state: OutputState::default(),
+            clock: Clock::new(),
         })
     }
 
