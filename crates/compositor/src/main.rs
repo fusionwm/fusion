@@ -51,7 +51,7 @@ fn run_winit() -> Result<(), Box<dyn std::error::Error>> {
 fn run_udev() -> Result<(), Box<dyn std::error::Error>> {
     let mut event_loop: EventLoop<compositor::data::Data<UdevData>> = EventLoop::try_new()?;
 
-    let backend = UdevData::init(event_loop.handle());
+    let backend = UdevData::init(&event_loop.handle());
     let mut data =
         compositor::init_compositor(event_loop.handle(), event_loop.get_signal(), backend)?;
 

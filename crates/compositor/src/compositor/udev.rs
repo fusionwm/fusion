@@ -131,7 +131,7 @@ impl Backend for UdevData {
 }
 
 impl UdevData {
-    pub fn init(handle: LoopHandle<'_, super::data::Data<UdevData>>) -> UdevData {
+    pub fn init(handle: &LoopHandle<'_, super::data::Data<UdevData>>) -> UdevData {
         use smithay::backend::session::Event as SessionEvent;
 
         let (session, notify) = LibSeatSession::new().unwrap();
