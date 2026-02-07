@@ -214,56 +214,10 @@ pub fn init_udev(state: &mut App<UdevData>) {
             data.state.on_udev_event(event);
         })
         .unwrap();
-
-    let libinput_session = LibinputSessionInterface::from(state.backend.session.clone());
-    let mut libinput = Libinput::new_with_udev(libinput_session);
-    libinput
-        .udev_assign_seat(&state.backend.session.seat())
-        .unwrap();
-
-    let input_backend = LibinputInputBackend::new(libinput.clone());
-    state
-        .handle
-        .insert_source(input_backend, |mut event, (), data| {
-            //state.handle_libinput_event(&mut event);
-            data.state.handle_input_event(event);
-        })
-        .unwrap();
-}
-
-impl App<UdevData> {
-    //fn handle_input_event(&mut self, event: InputEvent<LibinputInputBackend>) {
-    //    match event {
-    //        InputEvent::Keyboard { event } => std::process::exit(0),
-    //        _ => {}
-    //    }
-    //}
-
-    //fn on_keyboard(&mut self, event: KeyboardKeyEvent) {
-    //    let code = event.key_code();
-    //    let key_state = event.state();
-    //    let serial = SERIAL_COUNTER.next_serial();
-    //    let time = event.time_msec();
-
-    //    let Some(Some(action)) = self.keyboard.input(
-    //        self,
-    //        code,
-    //        key_state,
-    //        serial,
-    //        time,
-    //        |state, mods, keysym| state.handle_key(code, key_state, mods, keysym),
-    //    ) else {
-    //        return;
-    //    };
-
-    //    //self.handle_action(action)
-    //    //    .expect("config should have validated");
-    //}
 }
 
 impl App<UdevData> {
     fn on_udev_event(&mut self, event: UdevEvent) {
-        println!("on_udev_event: {event:#?}");
         match event {
             UdevEvent::Added { device_id, path } => {
                 if let Ok(node) = DrmNode::from_dev_id(device_id) {
@@ -280,7 +234,6 @@ impl App<UdevData> {
     }
 
     fn device_added(&mut self, device_id: u64, node: DrmNode, path: &Path) {
-        println!("Device added");
         if node != self.backend.primary_node {
             return;
         }
