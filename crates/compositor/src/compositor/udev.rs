@@ -604,7 +604,7 @@ impl App<UdevData> {
         match drm_compositor.render_frame(
             &mut device.gles,
             &elements,
-            [1.0, 0.0, 0.0, 1.0],
+            [0.8, 0.8, 0.8, 1.0],
             FrameFlags::DEFAULT,
         ) {
             Ok(render_output_res) => {
