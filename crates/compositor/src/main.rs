@@ -61,6 +61,7 @@ fn run_udev() -> Result<(), Box<dyn std::error::Error>> {
         data.state.render_all();
         data.state.handle_socket();
         data.state.engine.load_packages();
+        data.display.flush_clients().unwrap();
     })?;
     Ok(())
 }
