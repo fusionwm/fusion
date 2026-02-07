@@ -612,9 +612,8 @@ impl App<UdevData> {
                     return;
                 }
 
-                let output_presentation_feedback = OutputPresentationFeedback::new(output);
-                //let output_presentation_feedback =
-                //    self.presentation_feedback(output, &render_output_res.states);
+                let output_presentation_feedback =
+                    presentation_feedback(space, output, &render_output_res.states);
 
                 match drm_compositor.queue_frame(output_presentation_feedback) {
                     Ok(()) => {
@@ -629,37 +628,27 @@ impl App<UdevData> {
             }
         }
     }
+}
 
-    fn presentation_feedback(
-        &self,
-        output: &Output,
-        render_element_states: &RenderElementStates,
-    ) -> OutputPresentationFeedback {
-        let mut output_presentation_feedback = OutputPresentationFeedback::new(output);
+fn presentation_feedback(
+    space: &Space<Window>,
+    output: &Output,
+    render_element_states: &RenderElementStates,
+) -> OutputPresentationFeedback {
+    let mut output_presentation_feedback = OutputPresentationFeedback::new(output);
 
-        //for mapped in self.workspaces.windows_for_output(output) {
-        //    mapped.window.take_presentation_feedback(
-        //        &mut output_presentation_feedback,
-        //        surface_primary_scanout_output,
-        //        |surface, _| {
-        //            surface_presentation_feedback_flags_from_states(surface, render_element_states)
-        //        },
-        //    );
-        //}
-
-        //let layer_map = layer_map_for_output(output);
-        //for layer_surface in layer_map.layers() {
-        //    layer_surface.take_presentation_feedback(
-        //        &mut output_presentation_feedback,
-        //        surface_primary_scanout_output,
-        //        |surface, _| {
-        //            surface_presentation_feedback_flags_from_states(surface, render_element_states)
-        //        },
-        //    );
-        //}
-
-        output_presentation_feedback
+    let element_iter = space.elements_for_output(output);
+    for window in element_iter {
+        window.take_presentation_feedback(
+            &mut output_presentation_feedback,
+            surface_primary_scanout_output,
+            |surface, _| {
+                surface_presentation_feedback_flags_from_states(surface, render_element_states)
+            },
+        );
     }
+
+    output_presentation_feedback
 }
 
 #[derive(Debug, Clone)]
