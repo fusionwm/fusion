@@ -1,21 +1,24 @@
 use smithay::{
-    backend::input::{
-        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent,
-        KeyState, KeyboardKeyEvent, Keycode, PointerAxisEvent, PointerButtonEvent,
-        PointerMotionEvent,
+    backend::{
+        input::{
+            AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent,
+            KeyState, KeyboardKeyEvent, Keycode, PointerAxisEvent, PointerButtonEvent,
+            PointerMotionEvent,
+        },
+        session::Session,
     },
     desktop::WindowSurfaceType,
     input::{
-        keyboard::FilterResult,
+        keyboard::{FilterResult, Keysym},
         pointer::{AxisFrame, ButtonEvent, MotionEvent, RelativeMotionEvent},
     },
     utils::{Logical, Point, SERIAL_COUNTER},
 };
 use wayland_server::protocol::wl_surface::WlSurface;
 
-use crate::compositor::{backend::Backend, state::App};
+use crate::compositor::{backend::Backend, state::App, udev::UdevData, window::WinitBackend};
 
-impl<B: Backend + 'static> App<B> {
+impl<B: Backend + SpecialActions> App<B> {
     pub fn handle_input_event<I: InputBackend>(&mut self, input: InputEvent<I>)
     where
         I::Device: 'static,
@@ -192,6 +195,7 @@ impl<B: Backend + 'static> App<B> {
             }
             InputEvent::Keyboard { event } => {
                 let keyboard = self.seat.get_keyboard().unwrap();
+
                 let serial = SERIAL_COUNTER.next_serial();
                 keyboard.input::<(), _>(
                     self,
@@ -199,7 +203,10 @@ impl<B: Backend + 'static> App<B> {
                     event.state(),
                     serial,
                     event.time_msec(),
-                    |_, _, _| FilterResult::Forward,
+                    |data, _, handle| {
+                        let keysym = handle.modified_sym();
+                        data.backend.handle_tty_keys(event.state(), keysym)
+                    },
                 );
 
                 if event.key_code() == Keycode::new(9) {
@@ -254,5 +261,48 @@ impl<B: Backend + 'static> App<B> {
         }
 
         raw_location
+    }
+}
+
+pub trait SpecialActions {
+    fn handle_tty_keys(&mut self, _state: KeyState, _keysym: Keysym) -> FilterResult<()> {
+        FilterResult::Forward
+    }
+}
+
+impl SpecialActions for WinitBackend {}
+
+impl SpecialActions for UdevData {
+    #[inline]
+    fn handle_tty_keys(&mut self, state: KeyState, keysym: Keysym) -> FilterResult<()> {
+        if state != KeyState::Pressed {
+            return FilterResult::Forward;
+        }
+
+        let vt_num = match keysym {
+            Keysym::XF86_Switch_VT_1 => Some(1),
+            Keysym::XF86_Switch_VT_2 => Some(2),
+            Keysym::XF86_Switch_VT_3 => Some(3),
+            Keysym::XF86_Switch_VT_4 => Some(4),
+            Keysym::XF86_Switch_VT_5 => Some(5),
+            Keysym::XF86_Switch_VT_6 => Some(6),
+            Keysym::XF86_Switch_VT_7 => Some(7),
+            Keysym::XF86_Switch_VT_8 => Some(8),
+            Keysym::XF86_Switch_VT_9 => Some(9),
+            Keysym::XF86_Switch_VT_10 => Some(10),
+            Keysym::XF86_Switch_VT_11 => Some(11),
+            Keysym::XF86_Switch_VT_12 => Some(12),
+            _ => None,
+        };
+
+        if let Some(vt) = vt_num {
+            log::info!("Switching to VT {vt}");
+            if let Err(err) = self.session.change_vt(vt) {
+                log::error!("Failed to switch session: {err}");
+            }
+            return FilterResult::Intercept(());
+        }
+
+        FilterResult::Forward
     }
 }

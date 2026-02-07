@@ -97,6 +97,7 @@ pub struct Device {
 
 pub struct UdevData {
     pub session: LibSeatSession,
+    pub libinput: Libinput,
     pub primary_node: DrmNode,
     pub dmabuf_state: DmabufState,
     pub dmabuf_global: Option<DmabufGlobal>,
@@ -136,15 +137,35 @@ impl UdevData {
 
         let (session, notify) = LibSeatSession::new().unwrap();
 
-        if session.is_active() {
-            println!("libseat: Session is active");
-        }
+        let libinput_session = LibinputSessionInterface::from(session.clone());
+        let mut libinput = Libinput::new_with_udev(libinput_session);
+        libinput.udev_assign_seat(&session.seat()).unwrap();
+
+        let input_backend = LibinputInputBackend::new(libinput.clone());
+        handle
+            .insert_source(input_backend, |mut event, (), data| {
+                //state.handle_libinput_event(&mut event);
+                data.state.handle_input_event(event);
+            })
+            .unwrap();
 
         handle
             .insert_source(notify, |event, (), data| match event {
-                SessionEvent::PauseSession => todo!(),
+                SessionEvent::PauseSession => {
+                    data.state.sleep = true;
+                    let backend = &mut data.state.backend;
+                    backend.libinput.suspend();
+
+                    let device = data.state.backend.device.as_mut().unwrap();
+                    device.drm.pause();
+                }
                 SessionEvent::ActivateSession => {
-                    println!("libseat: Activate session");
+                    data.state.sleep = false;
+                    let backend = &mut data.state.backend;
+                    backend.libinput.resume().unwrap();
+
+                    let device = data.state.backend.device.as_mut().unwrap();
+                    device.drm.activate(false).unwrap();
                 }
             })
             .unwrap();
@@ -173,6 +194,7 @@ impl UdevData {
             dmabuf_state: DmabufState::new(),
             dmabuf_global: None,
             device: None,
+            libinput,
         }
     }
 }

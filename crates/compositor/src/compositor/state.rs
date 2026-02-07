@@ -116,6 +116,8 @@ pub struct App<B: Backend + 'static> {
 
     pub clock: Clock<Monotonic>,
 
+    pub sleep: bool,
+
     //Input
     pub input_state: InputState<B>,
     pub output_state: OutputState,
@@ -288,6 +290,7 @@ impl<B: Backend> App<B> {
             output_state: OutputState::default(),
             clock: Clock::new(),
             xdg_decoration_state,
+            sleep: false,
         })
     }
 
