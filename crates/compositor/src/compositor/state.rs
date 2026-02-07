@@ -399,7 +399,6 @@ impl<B: Backend + 'static> XdgShellHandler for App<B> {
             let mut globals = self.globals.lock().unwrap();
             let space = &mut globals.space;
 
-            space.map_element(window.clone(), (0, 0), false);
             globals.mapped_windows.insert(window.clone())
         };
         window.user_data().insert_if_missing(|| window_id);
