@@ -1,5 +1,7 @@
 // Ты знаешь что такое безумие?
 
+#![allow(clippy::redundant_closure_for_method_calls)]
+
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::drm::compositor::FrameFlags;
 use smithay::backend::drm::{DrmEventMetadata, DrmEventTime};
@@ -9,6 +11,7 @@ use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::{Element, Id, RenderElement, RenderElementStates};
 use smithay::backend::renderer::utils::CommitCounter;
 use smithay::backend::renderer::{Frame, ImportAll, ImportMem, Renderer};
+use smithay::delegate_dmabuf;
 use smithay::desktop::space::space_render_elements;
 use smithay::desktop::utils::{
     surface_presentation_feedback_flags_from_states, surface_primary_scanout_output,
@@ -29,7 +32,6 @@ use smithay::{
     output::{Output, OutputModeSource, PhysicalProperties, Subpixel},
     utils::Size,
 };
-use smithay::{delegate_dmabuf, render_elements};
 use std::time::Duration;
 use std::{collections::HashMap, path::Path};
 
@@ -46,7 +48,7 @@ use smithay::{
         },
         drm::{self, DrmDevice, DrmDeviceFd, DrmEvent, DrmNode},
         egl::{EGLContext, EGLDevice, EGLDisplay},
-        renderer::{ImportDma, ImportEgl, gles::GlesRenderer},
+        renderer::{ImportDma, gles::GlesRenderer},
         session::{Session, libseat::LibSeatSession},
         udev::{UdevBackend, UdevEvent, all_gpus, primary_gpu},
     },
@@ -309,7 +311,6 @@ impl App<UdevData> {
     }
 
     fn device_changed(&mut self, device_id: u64) {
-        println!("device changed");
         let Some(device) = &mut self.backend.device else {
             return;
         };
@@ -477,8 +478,7 @@ impl App<UdevData> {
                 let refresh = output
                     .current_mode()
                     .map(|mode| Duration::from_secs_f64(1_000f64 / f64::from(mode.refresh)))
-                    .map(Refresh::Fixed)
-                    .unwrap_or(Refresh::Unknown);
+                    .map_or(Refresh::Unknown, Refresh::Fixed);
 
                 feedback.presented::<_, Monotonic>(
                     presentation_time,
@@ -707,7 +707,7 @@ impl DmabufHandler for App<UdevData> {
 
     fn dmabuf_imported(
         &mut self,
-        global: &DmabufGlobal,
+        _global: &DmabufGlobal,
         dmabuf: smithay::backend::allocator::dmabuf::Dmabuf,
         notifier: smithay::wayland::dmabuf::ImportNotifier,
     ) {
@@ -727,7 +727,7 @@ impl RectElement {
     pub fn new(pos: (i32, i32), size: (i32, i32), color: [f32; 4]) -> Self {
         Self {
             id: Id::new(),
-            rect: Rectangle::from_loc_and_size(pos, size),
+            rect: Rectangle::new(pos.into(), size.into()),
             color,
         }
     }
@@ -755,10 +755,10 @@ impl<R: Renderer> RenderElement<R> for RectElement {
     fn draw(
         &self,
         frame: &mut R::Frame<'_, '_>,
-        src: smithay::utils::Rectangle<f64, smithay::utils::Buffer>,
+        _src: smithay::utils::Rectangle<f64, smithay::utils::Buffer>,
         dst: smithay::utils::Rectangle<i32, smithay::utils::Physical>,
         damage: &[smithay::utils::Rectangle<i32, smithay::utils::Physical>],
-        opaque_regions: &[smithay::utils::Rectangle<i32, smithay::utils::Physical>],
+        _opaque_regions: &[smithay::utils::Rectangle<i32, smithay::utils::Physical>],
     ) -> Result<(), R::Error> {
         frame.draw_solid(dst, damage, self.color.into())
     }
