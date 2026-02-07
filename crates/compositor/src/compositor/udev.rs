@@ -10,6 +10,10 @@ use smithay::backend::renderer::element::{Element, Id, RenderElement, RenderElem
 use smithay::backend::renderer::utils::CommitCounter;
 use smithay::backend::renderer::{Frame, ImportAll, ImportMem, Renderer};
 use smithay::desktop::space::space_render_elements;
+use smithay::desktop::utils::{
+    surface_presentation_feedback_flags_from_states, surface_primary_scanout_output,
+};
+use smithay::desktop::{Space, Window};
 use smithay::output::Mode;
 use smithay::reexports::input::Libinput;
 use smithay::reexports::wayland_protocols::wp::presentation_time::server::wp_presentation_feedback;
