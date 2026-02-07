@@ -564,16 +564,13 @@ pub fn handle_commit(
         .find(|w| w.toplevel().unwrap().wl_surface() == surface)
         .cloned()
     {
-        println!("handle commit");
         let window_id = *window.user_data().get::<WindowKey>().unwrap();
         let mut bindings = engine.get_single_write_bindings::<Compositor>("compositor.window");
         let mut store = bindings.store();
-        println!("call");
         bindings
             .fusion_compositor_wm_exports()
             .call_on_commit(&mut store, window_id.into())
             .unwrap();
-        println!("end");
 
         let initial_configure_sent = with_states(surface, |states| {
             states
